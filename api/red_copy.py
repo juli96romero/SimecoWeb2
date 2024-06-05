@@ -31,10 +31,10 @@ cfg = dict(
     val_dir = "./data/validation/",
     test_dir = "./data/test/",
     num_images = 496,
-    image_size = 128,
+    image_size = 256,       #CAMBIADOS#####################################
     
     num_epochs = 501,
-    batch_size = 128,       # paper original usa instance normalization  
+    batch_size = 256,       # paper original usa instance normalization  
     lr = 2e-4,
     display_step = 5,
     adversarial_criterion = nn.BCEWithLogitsLoss(), # vanilla loss 
@@ -133,7 +133,7 @@ def reformat_label(label):
 #esto no se si va aca o como definicion
 train_transform = A.Compose(
 [
-    A.Resize(width=128, height=128), # default INTER_LINEAR interpolation
+    A.Resize(width=256, height=256), # default INTER_LINEAR interpolation#######################CAMBIADOS
     A.HorizontalFlip(p=0.5),
     A.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
     A.ToFloat(),
@@ -144,7 +144,7 @@ train_transform = A.Compose(
 )
 test_transform = A.Compose(
     [
-        A.Resize(width=128, height=128), # default INTER_LINEAR interpolation
+        A.Resize(width=256, height=256), # default INTER_LINEAR interpolation##############CAMBIADOS
         ToTensorV2(),
     ],
 )
@@ -658,16 +658,7 @@ class Pix2Pix(pl.LightningModule):
 
 
     def valid_step256_fromImage(self,img):
-        """
-        same_shape = label2.shape == label.shape
-        same_dtype = label2.dtype == label.dtype
-
-        if same_shape and same_dtype:
-            print("Las imágenes tienen el mismo formato.")
-        else:
-            print("Las imágenes NO tienen el mismo formato.")"""
         
-
         input_path = "./data/validation/labels"
         filenames = listdir(input_path)
         output_path = "./results/imagenesTomadasDeVTK/"
@@ -680,9 +671,15 @@ class Pix2Pix(pl.LightningModule):
         self.indice+=1
         
         label = self.scale_image(label) #cambio de 128 a 256 la imagen despues de generada
-        
+        same_shape = label2.shape == label.shape
+        same_dtype = label2.dtype == label.dtype
+
+        if same_shape and same_dtype:
+            print("Las imágenes tienen el mismo formato.")
+        else:
+            print("Las imágenes NO tienen el mismo formato.")
         mask = reformat_label(label)
-        #save_image(img, path.join(output_path,filenames[0] + '.png')) 
+        save_image(img, path.join(output_path,filenames[0] + '.png')) 
 
         # TODO: Ver porque poronga tengo que hacer la transformación de una imagen (label-RGB) si o si y no puedo mandar solo la mask
         transformed = test_transform(image=label, mask=mask)

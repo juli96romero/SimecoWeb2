@@ -11,4 +11,5 @@ urlpatterns = [
     path('api/stl-files/', views.list_stl_files, name='list_stl_files'),
     path('update_visualization', views.update_visualization, name='update_visualization'),
     path('image/', views.vtk_image, name='vtk_visualization'),
+    path('fov/', views.pruebaFOV, name='pruebaFov'),
 ]

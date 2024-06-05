@@ -11,6 +11,15 @@ from vtkmodules.util.numpy_support import vtk_to_numpy
 from io import BytesIO
 from PIL import Image
 
+def list_obj_files(request):
+    directory_path = os.path.join(os.path.dirname(__file__), 'obj-files')
+    files = [f for f in os.listdir(directory_path) if f.endswith('.obj')]
+    return JsonResponse(files, safe=False)
+
+def list_stl_files(request):
+    directory_path = os.path.join(os.path.dirname(__file__), 'stl-files')
+    files = [f for f in os.listdir(directory_path) if f.endswith('.stl')]
+    return JsonResponse(files, safe=False)
 
 def update_visualization(request):
     if request.method == 'POST':
@@ -142,29 +151,12 @@ def save_image(request):
     return JsonResponse({'error': 'Invalid request method'}, status=405)
 
 
-def my_view(request):
-    # esto llama a la red
-    #return render(request, main)
-
-    #esto llama al frontend
-    return render(request, 'api/main_page.html')
-
-def vtk_image(request):
-    return render(request, 'api/vtk_image.html')
 
 
 
-def list_obj_files(request):
-    directory_path = os.path.join(os.path.dirname(__file__), 'obj-files')
-    files = [f for f in os.listdir(directory_path) if f.endswith('.obj')]
-    return JsonResponse(files, safe=False)
 
-def list_stl_files(request):
-    directory_path = os.path.join(os.path.dirname(__file__), 'stl-files')
-    files = [f for f in os.listdir(directory_path) if f.endswith('.stl')]
-    return JsonResponse(files, safe=False)
 
-def slice_to_image(filled_slice):
+def slice_to_image(filled_slice): #transforma el slice VTK a imagen
     mapper = vtk.vtkPolyDataMapper()
     mapper.SetInputData(filled_slice)
 
@@ -203,7 +195,7 @@ def slice_to_image(filled_slice):
 
     return arr
 
-def vtk_visualization_image(request):
+def vtk_visualization_image(request): #de /front es el que hace todo
     #Load all meshes from the folder
     data = json.loads(request)
     x = data['x']
@@ -241,6 +233,17 @@ def vtk_visualization_image(request):
     # Return HTML response
     return slice_image
 
+def my_view(request):
+    # esto llama a la red
+    #return render(request, main)
 
+    #esto llama al frontend
+    return render(request, 'api/main_page.html')
+
+def vtk_image(request):
+    return render(request, 'api/vtk_image.html')
+
+def pruebaFOV(request):
+    return render(request, 'api/fov.html')
 
 

@@ -9,6 +9,8 @@ from .cartesianRemap import pickel_images
 from io import BytesIO
 from PIL import Image
 
+from .red_copy import main as main2
+
 input_path = "./data/validation/labels"
 output_path = "./results/" 
 model = main("self")
@@ -151,6 +153,87 @@ class GeneradorLineal(WebsocketConsumer):
         # Assuming you receive image data in base64 format
         
         image_data = model.short_valid_step_256(input_path,output_path)
+        
+        # Convert image data to uint8
+        image_data = image_data.astype(np.uint8)
+        
+        
+
+        # Reshape the image data to (height, width, channels)
+        height, width, channels = image_data.shape
+        image_data_reshaped = image_data.reshape((height, width, channels))
+
+        
+
+        # Convert the image array to PIL Image
+        image = Image.fromarray(image_data_reshaped)
+
+
+        #image = acomodarFOV(img=image)
+        # Convert the image to base64
+        with BytesIO() as buffer:
+            image.save(buffer, format="PNG")
+            image_base64 = base64.b64encode(buffer.getvalue()).decode()
+
+        self.send(text_data=json.dumps({"image_data": image_base64}))
+
+
+
+class Principal(WebsocketConsumer):
+
+    model2 = main2("self")
+    def connect(self):
+        self.accept()
+        
+        self.send(text_data=json.dumps({
+            'type': 'connection_established',
+            'message': 'You are now connected'
+        }))
+
+    def receive(self, text_data):
+        # Assuming you receive image data in base64 format
+        
+        image_data = self.model2.short_valid_step(input_path,output_path)
+        
+        # Convert image data to uint8
+        image_data = image_data.astype(np.uint8)
+        
+        
+
+        # Reshape the image data to (height, width, channels)
+        height, width, channels = image_data.shape
+        image_data_reshaped = image_data.reshape((height, width, channels))
+
+        
+
+        # Convert the image array to PIL Image
+        image = Image.fromarray(image_data_reshaped)
+
+
+        #image = acomodarFOV(img=image)
+        # Convert the image to base64
+        with BytesIO() as buffer:
+            image.save(buffer, format="PNG")
+            image_base64 = base64.b64encode(buffer.getvalue()).decode()
+
+        self.send(text_data=json.dumps({"image_data": image_base64}))
+
+
+class Principal128(WebsocketConsumer):
+
+    
+    def connect(self):
+        self.accept()
+        
+        self.send(text_data=json.dumps({
+            'type': 'connection_established',
+            'message': 'You are now connected'
+        }))
+
+    def receive(self, text_data):
+        # Assuming you receive image data in base64 format
+        
+        image_data = model.short_valid_step(input_path,output_path)
         
         # Convert image data to uint8
         image_data = image_data.astype(np.uint8)

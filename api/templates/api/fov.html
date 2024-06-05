@@ -35,10 +35,7 @@
             max-width: 100%;
             max-height: 100%;
         }
-        #scaleSlider {
-            width: 50%;
-            margin-top: 10px; /* Espacio entre el botón y el control deslizante */
-        }
+        
     </style>
 </head>
 <body>
@@ -48,7 +45,7 @@
         <!-- Botón para enviar un mensaje -->
         <button id="sendMessageButton">Generar</button>
         <!-- Control deslizante para ajustar la escala de la imagen -->
-        <input type="range" min="1" max="5" value="2" step="0.1" id="scaleSlider">
+        
     </div>
 
     <!-- Espacio para mostrar mensajes -->
@@ -58,7 +55,7 @@
     <img id="receivedImage" style="display: none;" alt="Received Image"/>
 
     <script type="text/javascript">
-        let url = `ws://${window.location.host}/ws/socket-principal/`;
+        let url = `ws://${window.location.host}/ws/socket-saver-image/`;
         let buttonState = false;
         const chatSocket = new WebSocket(url);
 
@@ -93,14 +90,10 @@
         // Agregar un event listener al botón
         document.getElementById("sendMessageButton").addEventListener("click", buttonPressed);
 
-        // Obtener el control deslizante
-        var slider = document.getElementById("scaleSlider");
 
-        // Escuchar cambios en el control deslizante
-        slider.oninput = function() {
-            var scaleValue = this.value;
-            document.getElementById("receivedImage").style.transform = "scale(" + scaleValue + ")";
-        };
+        
+
+        
     
     </script>
 </body>

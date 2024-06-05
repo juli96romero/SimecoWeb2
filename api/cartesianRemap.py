@@ -16,7 +16,7 @@ def ls(ruta = getcwd()):
     return [arch.name for arch in scandir(ruta) if arch.is_file()]
 
 input_path = './results/' 
-output_path = '../resizedimages/'
+output_path = './resizedimages/'
 #pickle_path =  '../resizedimages/mask_simeco.pickle'
 pickle_path =  'api\mask_simeco.pickle'  
 # Load a .pkl file
