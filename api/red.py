@@ -23,6 +23,7 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
 from django.http import HttpResponse
+from . import cartesianRemap as remap
 
 cfg = dict(
     seed = 2023,
@@ -575,7 +576,18 @@ class Pix2Pix(pl.LightningModule):
             display_progress(condition[0], real[0], fake[0], self.current_epoch, 
                              path="./working/img_{}".format(self.current_epoch))
 
+    def scale_image(self,image, width=256, height=256):
+    
+        scaledImage = cv2.resize(image,(width,height), interpolation=cv2.INTER_AREA)
+        
+        return scaledImage 
+
+
     indice = 0
+
+
+
+    
     def short_valid_step(self,input_path,output_path):
         
        
@@ -598,6 +610,103 @@ class Pix2Pix(pl.LightningModule):
         return fake_image 
 
 
+    def short_valid_step_256(self,input_path,output_path):
+        self.indice=0
+        input_path= "./results/imagenesTomadasDeVTK/"
+        # Genero las imagenes simuladas 
+        self.gen.eval() # modelo en modo eval
+        filenames = listdir(input_path)
+        label = load_image(path.join(input_path, filenames[self.indice]))
+        self.indice+=1
+        if self.indice>=len(filenames):
+            self.indice=0
+        
+        #label = self.scale_image(label) #cambio de 128 a 256 la imagen antes de generada
+        
+        mask = reformat_label(label)
+        
+
+        # TODO: Ver porque poronga tengo que hacer la transformación de una imagen (label-RGB) si o si y no puedo mandar solo la mask
+        transformed = test_transform(image=label, mask=mask)
+        #aca el transforme me rompe todo y me la vuelve a bajar a 128
+        
+        mask = transformed['mask'] #input
+        
+        mask = torch.unsqueeze(torch.unsqueeze(mask.float(),0),0)# convierto los labels a float y el canal de profundida = 1 
+
+        #print(mask.shape)
+        
+        fake_image = self.gen(mask)
+        # Save image
+ 
+        fake_image = fake_image[0,:,:,:].detach().cpu().numpy()
+        
+        
+        
+        fake_image = (((np.transpose(fake_image, (1, 2, 0)) + 1) / 2.0)*255).astype(np.uint8) 
+        #print(fake_image.shape)
+        fake_image = self.scale_image(fake_image)
+        #print(fake_image.shape)
+
+        #fake_image = remap.acomodarFOV(img=fake_image)
+        
+        
+
+        return fake_image 
+
+
+    def valid_step256_fromImage(self,img):
+        
+        input_path = "./data/validation/labels"
+        filenames = listdir(input_path)
+        output_path = "./results/imagenesTomadasDeVTK/"
+        label2 = load_image(path.join(input_path, filenames[0]))
+
+
+        # Genero las imagenes simuladas 
+        self.gen.eval() # modelo en modo eval
+        label = img
+        self.indice+=1
+        
+        label = self.scale_image(label) #cambio de 128 a 256 la imagen despues de generada
+        same_shape = label2.shape == label.shape
+        same_dtype = label2.dtype == label.dtype
+
+        if same_shape and same_dtype:
+            print("Las imágenes tienen el mismo formato.")
+        else:
+            print("Las imágenes NO tienen el mismo formato.")
+        mask = reformat_label(label)
+        save_image(img, path.join(output_path,filenames[0] + '.png')) 
+
+        # TODO: Ver porque poronga tengo que hacer la transformación de una imagen (label-RGB) si o si y no puedo mandar solo la mask
+        transformed = test_transform(image=label, mask=mask)
+        #aca el transforme me rompe todo y me la vuelve a bajar a 128
+        
+        mask = transformed['mask'] #input
+        
+        mask = torch.unsqueeze(torch.unsqueeze(mask.float(),0),0)# convierto los labels a float y el canal de profundida = 1 
+
+        #print(mask.shape)
+        
+        fake_image = self.gen(mask)
+        # Save image
+ 
+        fake_image = fake_image[0,:,:,:].detach().cpu().numpy()
+        
+        
+        
+        fake_image = (((np.transpose(fake_image, (1, 2, 0)) + 1) / 2.0)*255).astype(np.uint8) 
+        #print(fake_image.shape)
+        fake_image = self.scale_image(fake_image)
+        #print(fake_image.shape)
+
+        #fake_image = remap.acomodarFOV(img=fake_image)
+        
+        
+
+        return fake_image 
+
     
     def validation_step(self,input_path, output_path):
         makedirs(output_path, exist_ok=True)
@@ -615,6 +724,7 @@ class Pix2Pix(pl.LightningModule):
             # Save image
             fake_image = fake_image[0,:,:,:].detach().cpu().numpy()
             fake_image = (((np.transpose(fake_image, (1, 2, 0)) + 1) / 2.0)*255).astype(np.uint8) 
+            fake_image = self.scale_image(fake_image)
             save_image(fake_image, path.join(output_path,filename + '.png')) 
 
 

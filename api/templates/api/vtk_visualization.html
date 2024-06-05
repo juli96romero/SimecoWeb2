@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VTK Visualization</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-top: 20px;
+            width: 80%;
+            max-width: 800px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+        .btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .btn:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>VTK Visualization</h1>
+    <form id="normal-form">
+        <div class="form-group">
+            <label for="normal-x">Normal X:</label>
+            <input type="number" id="normal-x" name="normal-x" step="0.01" required>
+        </div>
+        <div class="form-group">
+            <label for="normal-y">Normal Y:</label>
+            <input type="number" id="normal-y" name="normal-y" step="0.01" required>
+        </div>
+        <div class="form-group">
+            <label for="normal-z">Normal Z:</label>
+            <input type="number" id="normal-z" name="normal-z" step="0.01" required>
+        </div>
+        <button type="submit" class="btn">Update Visualization</button>
+    </form>
+</div>
+
+<script>
+    document.getElementById('normal-form').addEventListener('submit', function(event) {
+        event.preventDefault();
+
+        const normalX = parseFloat(document.getElementById('normal-x').value);
+        const normalY = parseFloat(document.getElementById('normal-y').value);
+        const normalZ = parseFloat(document.getElementById('normal-z').value);
+
+        fetch('/update_visualization', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                normal: [normalX, normalY, normalZ]
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('Visualization updated successfully');
+            } else {
+                console.error('Failed to update visualization');
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    });
+</script>
+
+</body>
+</html>

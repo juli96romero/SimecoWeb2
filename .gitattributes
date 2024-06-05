@@ -1,1 +1,0 @@
-epoch=500-step=4008.ckpt filter=lfs diff=lfs merge=lfs -text
