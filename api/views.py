@@ -246,4 +246,7 @@ def vtk_image(request):
 def pruebaFOV(request):
     return render(request, 'api/fov.html')
 
+def lineal(request):
+    return render(request, 'api/lineal.html')
+
 

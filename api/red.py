@@ -611,8 +611,8 @@ class Pix2Pix(pl.LightningModule):
 
 
     def short_valid_step_256(self,input_path,output_path):
-        self.indice=0
-        input_path= "./results/imagenesTomadasDeVTK/"
+        
+        input_path = "./data/validation/labels"
         # Genero las imagenes simuladas 
         self.gen.eval() # modelo en modo eval
         filenames = listdir(input_path)
@@ -657,7 +657,7 @@ class Pix2Pix(pl.LightningModule):
 
 
 
-    def valid_step256_fromImage(self,img):
+    def valid_step256_fromImage(self,img_generada):
         """
         same_shape = label2.shape == label.shape
         same_dtype = label2.dtype == label.dtype
@@ -667,18 +667,23 @@ class Pix2Pix(pl.LightningModule):
         else:
             print("Las imágenes NO tienen el mismo formato.")"""
         
-
+        print("")
         input_path = "./data/validation/labels"
-        filenames = listdir(input_path)
+        
         output_path = "./results/imagenesTomadasDeVTK/"
-        label2 = load_image(path.join(input_path, filenames[0]))
+        #label2 = load_image(path.join(input_path, filenames[0]))
+        filenames = listdir(input_path)
+        array_uint8 = (img_generada * 255).astype(np.uint8)
 
-
+        # Crear un objeto Mat usando OpenCV
+        mat_image = cv2.cvtColor(array_uint8, cv2.COLOR_RGB2BGR)
+        
         # Genero las imagenes simuladas 
         self.gen.eval() # modelo en modo eval
-        label = img
+        label = mat_image
         self.indice+=1
-        
+        save_image(mat_image, path.join(output_path, str(self.indice)+'.png')) 
+        #label = load_image(path.join(input_path, filenames[self.indice]))
         label = self.scale_image(label) #cambio de 128 a 256 la imagen despues de generada
         
         mask = reformat_label(label)
@@ -707,8 +712,7 @@ class Pix2Pix(pl.LightningModule):
         #print(fake_image.shape)
 
         #fake_image = remap.acomodarFOV(img=fake_image)
-        
-        
+
 
         return fake_image 
 

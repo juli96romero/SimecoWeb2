@@ -30,8 +30,8 @@ class ChatConsumer(WebsocketConsumer):
         # Assuming you receive image data in base64 format
         
         imagen_recorte_vtk = views.vtk_visualization_image(text_data)
-
-        image_data = model.valid_step256_fromImage(imagen_recorte_vtk)
+        
+        image_data = model.valid_step256_fromImage(img_generada=imagen_recorte_vtk)
         
         # Convert image data to uint8
         image_data = image_data.astype(np.uint8)

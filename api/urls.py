@@ -12,4 +12,5 @@ urlpatterns = [
     path('update_visualization', views.update_visualization, name='update_visualization'),
     path('image/', views.vtk_image, name='vtk_visualization'),
     path('fov/', views.pruebaFOV, name='pruebaFov'),
+    path('lineal/', views.lineal, name='lineal'),
 ]
