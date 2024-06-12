@@ -8,12 +8,18 @@ from .cartesianRemap import acomodarFOV
 from .cartesianRemap import pickel_images
 from io import BytesIO
 from PIL import Image
+from os import path
+import os
+
+
 
 from .red_copy import main as main2
 
 input_path = "./data/validation/labels"
 output_path = "./results/" 
 model = main("self")
+
+
 
 class ChatConsumer(WebsocketConsumer):
 
@@ -31,6 +37,11 @@ class ChatConsumer(WebsocketConsumer):
         
         imagen_recorte_vtk = views.vtk_visualization_image(text_data)
         
+        output_path = "./results/imagenesTomadasDeVTK/"
+        os.makedirs(output_path, exist_ok=True)
+        image = Image.fromarray(imagen_recorte_vtk.astype('uint8'), 'RGB')
+        image.save(os.path.join(output_path, 'consumers1.png'))
+
         image_data = model.valid_step256_fromImage(img_generada=imagen_recorte_vtk)
         
         # Convert image data to uint8

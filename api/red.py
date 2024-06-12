@@ -666,26 +666,29 @@ class Pix2Pix(pl.LightningModule):
             print("Las imágenes tienen el mismo formato.")
         else:
             print("Las imágenes NO tienen el mismo formato.")"""
-        
         print("")
-        input_path = "./data/validation/labels"
-        
         output_path = "./results/imagenesTomadasDeVTK/"
-        #label2 = load_image(path.join(input_path, filenames[0]))
-        filenames = listdir(input_path)
-        array_uint8 = (img_generada * 255).astype(np.uint8)
-
-        # Crear un objeto Mat usando OpenCV
-        mat_image = cv2.cvtColor(array_uint8, cv2.COLOR_RGB2BGR)
+        os.makedirs(output_path, exist_ok=True)
+        input_path = "./data/validation/labels"
+        image = Image.fromarray(img_generada.astype('uint8'), 'RGB')
+        image.save(os.path.join(output_path, 'reddd1.png'))
+        
+        
+        
+       
+        
         
         # Genero las imagenes simuladas 
         self.gen.eval() # modelo en modo eval
-        label = mat_image
+        label = img_generada
         self.indice+=1
-        save_image(mat_image, path.join(output_path, str(self.indice)+'.png')) 
+        #save_image(mat_image, path.join(output_path, str(self.indice)+'.png')) 
         #label = load_image(path.join(input_path, filenames[self.indice]))
-        label = self.scale_image(label) #cambio de 128 a 256 la imagen despues de generada
+        #label = self.scale_image(label) #cambio de 128 a 256 la imagen despues de generada
         
+       
+        image = Image.fromarray(label.astype('uint8'), 'RGB')
+        image.save(os.path.join(output_path, 'reddd2.png'))
         mask = reformat_label(label)
         #save_image(img, path.join(output_path,filenames[0] + '.png')) 
 
@@ -696,7 +699,7 @@ class Pix2Pix(pl.LightningModule):
         mask = transformed['mask'] #input
         
         mask = torch.unsqueeze(torch.unsqueeze(mask.float(),0),0)# convierto los labels a float y el canal de profundida = 1 
-
+        
         #print(mask.shape)
         
         fake_image = self.gen(mask)

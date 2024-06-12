@@ -51,6 +51,7 @@
 <body>
 
 <div class="container">
+    <button id="sendMessageButton" onclick="history.back()">Volver</button>
     <h1>VTK Visualization</h1>
     <form id="normal-form">
         <div class="form-group">
@@ -77,7 +78,7 @@
         const normalY = parseFloat(document.getElementById('normal-y').value);
         const normalZ = parseFloat(document.getElementById('normal-z').value);
 
-        fetch('/update_visualization', {
+        fetch('/api/update_visualization', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

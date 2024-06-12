@@ -1,3 +1,4 @@
+from django.urls import get_resolver, URLPattern, URLResolver
 from django.shortcuts import render
 from django.http import HttpResponse
 from .red import main  # Corrected import statement
@@ -10,7 +11,44 @@ import vtk
 from vtkmodules.util.numpy_support import vtk_to_numpy
 from io import BytesIO
 from PIL import Image
+from os import path
+from torchvision.utils import save_image
+import numpy as np
+from PIL import Image
 
+
+#####funcionalidad de htmls:
+def extract_patterns(urlpatterns, base=''):
+    """Recursively extract all named URL patterns"""
+    patterns = []
+    for pattern in urlpatterns:
+        if isinstance(pattern, URLResolver):
+            patterns += extract_patterns(pattern.url_patterns, base + str(pattern.pattern))
+        elif isinstance(pattern, URLPattern):
+            if pattern.name and not pattern.name.startswith('api_'):  # Excluye nombres que comienzan con 'api_'
+                patterns.append({
+                    'name': pattern.name,
+                    'url': base + str(pattern.pattern)
+                })
+    return patterns
+
+def main_page(request):
+    resolver = get_resolver()
+    # Encuentra el resolver que corresponde a la aplicación "api"
+    api_resolver = None
+    for pattern in resolver.url_patterns:
+        if isinstance(pattern, URLResolver) and pattern.pattern._route == '':
+            api_resolver = pattern
+            break
+
+    urls = extract_patterns(api_resolver.url_patterns) if api_resolver else []
+    
+    return render(request, 'pagina_principal.html', {'urls': urls})
+
+
+# funcionalidad de SIMECO#############
+
+#levantar los STL o OBJ
 def list_obj_files(request):
     directory_path = os.path.join(os.path.dirname(__file__), 'obj-files')
     files = [f for f in os.listdir(directory_path) if f.endswith('.obj')]
@@ -20,6 +58,9 @@ def list_stl_files(request):
     directory_path = os.path.join(os.path.dirname(__file__), 'stl-files')
     files = [f for f in os.listdir(directory_path) if f.endswith('.stl')]
     return JsonResponse(files, safe=False)
+
+###VTK visulization para ver el recorte
+
 
 def update_visualization(request):
     if request.method == 'POST':
@@ -86,6 +127,43 @@ def vtk_visualization(request,normal=[0.3, 0.5, 1]):
     return render(request, 'api/vtk_visualization.html')
 
 
+####SLICE AND FILL
+
+
+""" ###########VER SI ESTO SE PEUDE BORRAR
+def save_image(request):
+    if request.method == 'POST':
+        try:
+            data = request.json()
+            image_data = data.get('image', '')
+            if not image_data:
+                return JsonResponse({'error': 'No image data found'}, status=400)
+
+            # Decoding the base64 image data
+            format, imgstr = image_data.split(';base64,')
+            ext = format.split('/')[-1]
+            img_data = base64.b64decode(imgstr)
+
+            # Define the path to save the image
+            image_path = os.path.join(settings.MEDIA_ROOT, 'slices', 'slice.png')
+
+            # Ensure the directory exists
+            os.makedirs(os.path.dirname(image_path), exist_ok=True)
+
+            # Write the image data to the file
+            with open(image_path, 'wb') as f:
+                f.write(img_data)
+
+            return JsonResponse({'message': 'Image saved successfully'})
+
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+    return JsonResponse({'error': 'Invalid request method'}, status=405)
+
+"""
+
+
+
 def slice_and_fill_mesh_vtk(mesh, origin=(0, 0, 0), normal=(1, 0, 0)):
     # Create a plane to slice the mesh
     plane = vtk.vtkPlane()
@@ -121,48 +199,15 @@ def slice_and_fill_mesh_vtk(mesh, origin=(0, 0, 0), normal=(1, 0, 0)):
     
     return filled_slice
 
-def save_image(request):
-    if request.method == 'POST':
-        try:
-            data = request.json()
-            image_data = data.get('image', '')
-            if not image_data:
-                return JsonResponse({'error': 'No image data found'}, status=400)
 
-            # Decoding the base64 image data
-            format, imgstr = image_data.split(';base64,')
-            ext = format.split('/')[-1]
-            img_data = base64.b64decode(imgstr)
-
-            # Define the path to save the image
-            image_path = os.path.join(settings.MEDIA_ROOT, 'slices', 'slice.png')
-
-            # Ensure the directory exists
-            os.makedirs(os.path.dirname(image_path), exist_ok=True)
-
-            # Write the image data to the file
-            with open(image_path, 'wb') as f:
-                f.write(img_data)
-
-            return JsonResponse({'message': 'Image saved successfully'})
-
-        except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
-    return JsonResponse({'error': 'Invalid request method'}, status=405)
-
-
-
-
-
-
-
-def slice_to_image(filled_slice): #transforma el slice VTK a imagen
+def slice_to_image(filled_slice):
     mapper = vtk.vtkPolyDataMapper()
     mapper.SetInputData(filled_slice)
 
     actor = vtk.vtkActor()
     actor.SetMapper(mapper)
-    actor.GetProperty().SetColor(0.58, 0.0, 0.83)
+    actor.GetProperty().SetColor(100/255.0, 0.0, 100/255.0)  
+    actor.GetProperty().LightingOff()  
 
     # Create a renderer and render window
     renderer = vtk.vtkRenderer()
@@ -171,7 +216,7 @@ def slice_to_image(filled_slice): #transforma el slice VTK a imagen
 
     # Add the actor to the scene
     renderer.AddActor(actor)
-    renderer.SetBackground(0, 0, 0)  # Set background to white
+    renderer.SetBackground(0, 0, 0)  # Set background to black
 
     # Create a render window interactor
     render_window_interactor = vtk.vtkRenderWindowInteractor()
@@ -193,7 +238,16 @@ def slice_to_image(filled_slice): #transforma el slice VTK a imagen
     components = vtk_array.GetNumberOfComponents()
     arr = vtk_to_numpy(vtk_array).reshape(height, width, components)
 
+    # Save image using PIL
+    output_path = "./results/imagenesTomadasDeVTK/"
+    os.makedirs(output_path, exist_ok=True)
+    image = Image.fromarray(arr.astype('uint8'), 'RGB')
+    image.save(os.path.join(output_path, 'views_save_image.png'))
+
     return arr
+
+
+
 
 def vtk_visualization_image(request): #de /front es el que hace todo
     #Load all meshes from the folder
@@ -226,19 +280,12 @@ def vtk_visualization_image(request): #de /front es el que hace todo
 
     # Convert filled slice to image
     slice_image = slice_to_image(filled_slice)
-    print("imagen generada en vtk_visual=")
-    print(slice_image.shape)
     
-
+    
     # Return HTML response
     return slice_image
 
-def my_view(request):
-    # esto llama a la red
-    #return render(request, main)
 
-    #esto llama al frontend
-    return render(request, 'api/main_page.html')
 
 def vtk_image(request):
     return render(request, 'api/vtk_image.html')
@@ -246,7 +293,9 @@ def vtk_image(request):
 def pruebaFOV(request):
     return render(request, 'api/fov.html')
 
-def lineal(request):
-    return render(request, 'api/lineal.html')
+def red128(request):
+    return render(request, 'api/red128.html')
 
+def red256(request):
+    return render(request, 'api/red256.html')
 

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 
 const SimecoApp = () => {
-  const [xValue, setXValue] = useState(0.58);
-  const [yValue, setYValue] = useState(0);
-  const [zValue, setZValue] = useState(0.83);
+  const [xValue, setXValue] = useState(0.3);
+  const [yValue, setYValue] = useState(0.3);
+  const [zValue, setZValue] = useState(0.99);
 
   const xRef = useRef(xValue);
   const yRef = useRef(yValue);

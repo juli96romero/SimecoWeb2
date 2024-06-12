@@ -674,10 +674,7 @@ class Pix2Pix(pl.LightningModule):
         same_shape = label2.shape == label.shape
         same_dtype = label2.dtype == label.dtype
 
-        if same_shape and same_dtype:
-            print("Las imágenes tienen el mismo formato.")
-        else:
-            print("Las imágenes NO tienen el mismo formato.")
+        
         mask = reformat_label(label)
         save_image(img, path.join(output_path,filenames[0] + '.png')) 
 

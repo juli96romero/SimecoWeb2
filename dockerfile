@@ -1,18 +1,20 @@
-FROM continuumio/miniconda3
+# Utiliza una imagen base oficial de Python
+FROM python:3.9-slim
 
-# Copiar el archivo de entorno conda exportado
-COPY environment.yml .
-
-# Crear un nuevo entorno conda y activarlo
-RUN pip install
-RUN conda env create -f environment.yml
-SHELL ["conda", "run", "-n", "base", "/bin/bash", "-c"]
-
-# Copiar el código de tu proyecto al contenedor
-COPY . /app
+# Establece el directorio de trabajo en /app
 WORKDIR /app
 
+# Copia los archivos de la aplicación a /app
+COPY . /app
 
+RUN apt-get update && apt-get install -y \
+    libgl1-mesa-glx \
+    libglib2.0-0
+# Instala las dependencias directamente
+RUN pip install django daphne channels numpy pillow matplotlib opencv-python tensorboard pytorch-lightning torchvision albumentations polarTransform vtk
 
-# Comando predeterminado para ejecutar cuando se inicie el contenedor
-CMD ["python", "app.py"]
+# Exponer el puerto que la aplicación usará (si es necesario)
+EXPOSE 8000
+
+# Define el comando por defecto para ejecutar la aplicación
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]

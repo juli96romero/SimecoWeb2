@@ -32,19 +32,12 @@
             justify-content: center;
         }
         #receivedImage {
-            margin-top: 500px;
             max-width: 100%;
             max-height: 100%;
         }
         #scaleSlider {
             width: 50%;
             margin-top: 10px; /* Espacio entre el botón y el control deslizante */
-        }
-
-        /* Estilo para los campos de entrada */
-        .variable-input {
-            margin-top: 10px; /* Espacio entre los campos de entrada */
-            font-size: 1.2em; /* Tamaño del texto */
         }
     </style>
 </head>
@@ -55,15 +48,8 @@
         <!-- Botón para enviar un mensaje -->
         <button id="sendMessageButton">Generar</button>
         <!-- Control deslizante para ajustar la escala de la imagen -->
-        <input type="range" min="1" max="3.5" value="2" step="0.1" id="scaleSlider">
+        <input type="range" min="1" max="5" value="2" step="0.1" id="scaleSlider">
         <button id="sendMessageButton" onclick="history.back()">Volver</button>
-        <!-- Campos de entrada para las variables x, y, z -->
-        <div>
-            <input type="number" id="variableX" class="variable-input" placeholder="Valor de x" value="0.58">
-            <input type="number" id="variableY" class="variable-input" placeholder="Valor de y" value="0.0">
-            <input type="number" id="variableZ" class="variable-input" placeholder="Valor de z" value="0.83">
-
-        </div>
     </div>
 
     <!-- Espacio para mostrar mensajes -->
@@ -73,7 +59,7 @@
     <img id="receivedImage" style="display: none;" alt="Received Image"/>
 
     <script type="text/javascript">
-        let url = `ws://${window.location.host}/ws/socket-server-image/`;
+        let url = `ws://${window.location.host}/ws/socket-principal/`;
         let buttonState = false;
         const chatSocket = new WebSocket(url);
 
@@ -95,15 +81,8 @@
 
         // Función para enviar un mensaje
         function sendMessage() {
-            let x = parseFloat(document.getElementById("variableX").value);
-            let y = parseFloat(document.getElementById("variableY").value);
-            let z = parseFloat(document.getElementById("variableZ").value);
-        
             chatSocket.send(JSON.stringify({
-                'message': 'message',
-                'x': x,
-                'y': y,
-                'z': z
+                'message': 'message'
             }));
         }
 

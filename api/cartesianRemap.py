@@ -18,7 +18,7 @@ def ls(ruta = getcwd()):
 input_path = './results/' 
 output_path = './resizedimages/'
 #pickle_path =  '../resizedimages/mask_simeco.pickle'
-pickle_path =  'api\mask_simeco.pickle'  
+pickle_path =  'api/mask_simeco.pickle'  
 # Load a .pkl file
 pickle_file = open(pickle_path,'rb')
 ptSettings = pickle.load(pickle_file)
@@ -43,7 +43,7 @@ def pickel_images(self):
         conc_1 = cv2.vconcat([superior,scaledImage])
         
         conc_2 = cv2.vconcat([conc_1,inferior])
-        print(conc_2.shape)
+        
         
         reconstructedImage = ptSettings.convertToCartesianImage(conc_2)
         
@@ -64,7 +64,7 @@ def acomodarFOV(img):
     conc_1 = cv2.vconcat([superior,scaledImage])
     
     conc_2 = cv2.vconcat([conc_1,inferior])
-    print(conc_2.shape)
+   
     
     reconstructedImage = ptSettings.convertToCartesianImage(conc_2)
        
