@@ -11,16 +11,17 @@ Pasos para levantar el proyecto desde el ambiente Conda:
 
 3. **Descargar los datos:**
 
-   Descargar los datos desde [SimecoWEB] (https://drive.google.com/file/d/1sW3vYTLPcXwhtjWcs70pv8qPrhxsh7GA/view?usp=drive_link)
-   Descomprimir y pegar dentro de SimecoWEB
+   Descargar los datos desde [Datos de SIMECO](https://drive.google.com/file/d/1sW3vYTLPcXwhtjWcs70pv8qPrhxsh7GA/view?usp=drive_link)
 
-4. **Crear y activar ambiente de Conda:**
+   Descomprimir y pegar dentro de la carpeta SimecoWEB
+
+5. **Crear y activar ambiente de Conda:**
 
    ```sh
    conda create --name env_simeco
    conda activate env_simeco
 
-5. **Instalar dependencias:**
+6. **Instalar dependencias:**
 
    ```sh
    pip install django
@@ -38,7 +39,7 @@ Pasos para levantar el proyecto desde el ambiente Conda:
    pip install vtk
 
 
-6. **Correr el servidor:**
+7. **Correr el servidor:**
 
    ```sh
    python manage.py runserver
