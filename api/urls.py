@@ -11,6 +11,7 @@ urlpatterns = [
     path('image/', views.vtk_image, name='Imagen generada con recorte de la malla'),
     path('fov/', views.pruebaFOV, name='prueba del FOV'),
     path('front/', include('frontend.urls'), name='SimecoWEB'),
+    path('malla/', views.mallaDelFOV, name='malla del FOV'),
 
     ######ENDPOINTS name comienza con 'api_'
     path('api/update_visualization/', views.update_visualization, name='api_update visualization del coso'),

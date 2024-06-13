@@ -15,6 +15,7 @@ from os import path
 from torchvision.utils import save_image
 import numpy as np
 from PIL import Image
+import math
 
 
 #####funcionalidad de htmls:
@@ -162,8 +163,145 @@ def save_image(request):
 
 """
 
+###########fovmesh
+
+def create_fov_mesh(origin, normal, radius, height, angle):
+    # Normalize the normal vector
+    norm = np.linalg.norm(normal)
+    normal = [normal[0] / norm, normal[1] / norm, normal[2] / norm]
+    
+    # Create rotation matrix to align FOV with the given normal
+    up = [1, 1, 0]  # Default up direction
+    v = np.cross(up, normal)
+    c = np.dot(up, normal)
+    k = 1.0 / (1.0 + c)
+    rotation_matrix = np.array([
+        [v[0]*v[0]*k + c, v[0]*v[1]*k - v[2], v[0]*v[2]*k + v[1]],
+        [v[1]*v[0]*k + v[2], v[1]*v[1]*k + c, v[1]*v[2]*k - v[0]],
+        [v[2]*v[0]*k - v[1], v[2]*v[1]*k + v[0], v[2]*v[2]*k + c]
+    ])
+    
+    # Create the points for the FOV shape
+    points = vtk.vtkPoints()
+    points.InsertNextPoint(origin)
+    
+    num_segments = 50
+    for i in range(num_segments + 1):
+        theta = angle * (i / num_segments) - angle / 2
+        local_x = radius * math.cos(theta)
+        local_y = radius * math.sin(theta)
+        local_z = height
+        local_point = np.array([local_x, local_y, local_z])
+        global_point = origin + np.dot(rotation_matrix, local_point)
+        points.InsertNextPoint(global_point.tolist())
+    
+# Create the FOV polygon
+    poly = vtk.vtkPolygon()
+    poly.GetPointIds().SetNumberOfIds(num_segments + 2)
+    for i in range(num_segments + 2):
+        poly.GetPointIds().SetId(i, i)
+    
+    # Create a cell array to store the FOV polygon
+    cells = vtk.vtkCellArray()
+    cells.InsertNextCell(poly)
+    
+    # Create a polydata object to store the FOV geometry
+    fov_polydata = vtk.vtkPolyData()
+    fov_polydata.SetPoints(points)
+    fov_polydata.SetPolys(cells)
+    
+    # Create a polydata to mesh filter to generate the FOV mesh
+    fov_mesh = vtk.vtkPolyData()
+    fov_mesh.DeepCopy(fov_polydata)
+    
+    return fov_mesh
 
 
+def mallaDelFOV(request):
+    # Load a mesh from a file
+    folder_path = "api/stl-files"
+    stl_files = [f for f in os.listdir(folder_path) if f.endswith('.stl')]
+
+    if not stl_files:
+        print("No STL files found in the directory.")
+        return
+
+    # Set up VTK rendering
+    renderer = vtk.vtkRenderer()
+
+    for stl_file in stl_files:
+        reader = vtk.vtkSTLReader()
+        reader.SetFileName(os.path.join(folder_path, stl_file))
+        reader.Update()
+        liver_mesh = reader.GetOutput()
+
+        # Get the filled slice for each mesh
+        #filled_slice = slice_and_fill_mesh_vtk(liver_mesh, origin=[0, 0, -0.02], normal=normal)
+
+        # Mapper and actor for each STL mesh
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputData(liver_mesh)
+
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetOpacity(0.1)
+
+        # Mapper and actor for the filled slice
+        #slice_mapper = vtk.vtkPolyDataMapper()
+        #slice_mapper.SetInputData(filled_slice)
+
+        #slice_actor = vtk.vtkActor()
+        #slice_actor.SetMapper(slice_mapper)
+        #slice_actor.GetProperty().SetColor(0.58, 0.0, 0.83)
+
+        # Add the actors to the scene
+        renderer.AddActor(actor)
+        #renderer.AddActor(slice_actor)
+    
+    
+
+
+    ## Define the origin and normal for the FOV
+    slice_origin = [0.,0.,-0.02]
+    slice_normal=[-5.,-20.,1.]
+
+    # Define FOV shape parameters
+    radius = 1
+    height = 0.1
+    angle = math.radians(60)  # Convert degrees to radians
+
+    # Create FOV mask on the same plane as slice origin and normal (No esta en el mismo plano que el slice- a corregir)
+    fov_mesh = create_fov_mesh(slice_origin, slice_normal, radius, height, angle)
+
+    # Mapper and actor for the FOV mesh
+    fov_mapper = vtk.vtkPolyDataMapper()
+    fov_mapper.SetInputData(fov_mesh)
+    fov_actor = vtk.vtkActor()
+    fov_actor.SetMapper(fov_mapper)
+    fov_actor.GetProperty().SetColor(1.0, 0.0, 0.0)  # Set color to red
+    fov_actor.GetProperty().SetOpacity(1)
+    
+
+
+    renderer.SetBackground(1, 1, 1)
+    renderer.AddActor(fov_actor)
+    # Create a render window and interactor
+    render_window = vtk.vtkRenderWindow()
+    render_window.AddRenderer(renderer)
+    render_window_interactor = vtk.vtkRenderWindowInteractor()
+    render_window_interactor.SetRenderWindow(render_window)
+
+    # Render and interact
+    render_window.Render()
+    render_window_interactor.Start()
+    return render(request, 'api/malla.html')
+
+
+
+
+
+
+#### simeco frontend
 def slice_and_fill_mesh_vtk(mesh, origin=(0, 0, 0), normal=(1, 0, 0)):
     # Create a plane to slice the mesh
     plane = vtk.vtkPlane()
@@ -198,6 +336,8 @@ def slice_and_fill_mesh_vtk(mesh, origin=(0, 0, 0), normal=(1, 0, 0)):
     filled_slice = triangle_filter.GetOutput()
     
     return filled_slice
+
+
 
 
 def slice_to_image(filled_slice):

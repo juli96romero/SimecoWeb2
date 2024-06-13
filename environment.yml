@@ -2,15 +2,15 @@ name: entorno_depurado
 channels:
   - defaults
 dependencies:
-  - ca-certificates
-  - openssl
-  - pip=24.0
-  - python=3.9.19
-  - setuptools=69.5.1
-  - sqlite=3.45.3
-  - vc=14.2
-  - vs2015_runtime=14.29.30133
-  - wheel=0.43.0
+  - ca-certificates=2024.3.11=haa95532_0
+  - openssl=3.0.13=h2bbff1b_2
+  - pip=24.0=py39haa95532_0
+  - python=3.9.19=h1aa4202_1
+  - setuptools=69.5.1=py39haa95532_0
+  - sqlite=3.45.3=h2bbff1b_0
+  - vc=14.2=h2eaa2aa_1
+  - vs2015_runtime=14.29.30133=h43f2093_3
+  - wheel=0.43.0=py39haa95532_0
   - pip:
       - absl-py==2.1.0
       - aiohttp==3.9.5
