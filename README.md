@@ -6,7 +6,8 @@ Pasos para levantar el proyecto desde el ambiente Conda:
 
 1. **Descargar el repositorio SimecoWEB:**
 
-   ```git clone https://github.com/juli96romero/SimecoWeb2.git
+   ```sh
+   git clone https://github.com/juli96romero/SimecoWeb2.git
 
 3. **Descargar los datos:**
 
