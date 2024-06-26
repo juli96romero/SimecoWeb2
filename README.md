@@ -20,6 +20,7 @@ Pasos para levantar el proyecto desde el ambiente Conda:
    ```sh
    conda create --name env_simeco
    conda activate env_simeco
+   conda install pip
 
 6. **Instalar dependencias:**
 
