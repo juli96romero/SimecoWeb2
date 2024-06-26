@@ -39,6 +39,16 @@ Pasos para levantar el proyecto desde el ambiente Conda:
    pip install polarTransform 
    pip install vtk
 
+6.5. **Instalar dependencias extras para LINUX:**
+
+   ```sh
+   sudo apt update
+   sudo apt install mesa-utils
+   sudo apt install -y mesa-utils
+   sudo apt install libxrender1
+   sudo apt install libxtst6 libxrandr2 libxcb1 libxext6
+   sudo apt install xorg
+
 
 7. **Correr el servidor:**
 
