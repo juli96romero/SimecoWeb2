@@ -12,6 +12,7 @@ Pasos para levantar el proyecto desde el ambiente Conda:
 3. **Descargar los datos:**
 
    Descargar los datos desde [Datos de SIMECO](https://drive.google.com/file/d/1sW3vYTLPcXwhtjWcs70pv8qPrhxsh7GA/view?usp=drive_link)
+   Descargar el archivo CKTP desde [Archivo CKTP](https://drive.google.com/file/d/1XKMFaIcEyTFAhf_wGqB2w8VLbaU6xqRq/view?usp=drive_link)
 
    Descomprimir y pegar dentro de la carpeta SimecoWEB
 
