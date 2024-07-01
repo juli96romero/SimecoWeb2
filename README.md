@@ -9,20 +9,20 @@ Pasos para levantar el proyecto desde el ambiente Conda:
    ```sh
    git clone https://github.com/juli96romero/SimecoWeb2.git
 
-3. **Descargar los datos:**
+2. **Descargar los datos:**
 
    Descargar los datos desde [Datos de SIMECO](https://drive.google.com/file/d/1VihFXJlI73ICX5GMJvQGRBGRUaN1pn1c/view?usp=drive_link)
    
    Descomprimir y pegar dentro de la carpeta SimecoWEB
 
-5. **Crear y activar ambiente de Conda:**
+3. **Crear y activar ambiente de Conda:**
 
    ```sh
    conda create --name env_simeco
    conda activate env_simeco
    conda install pip
 
-6. **Instalar dependencias:**
+4. **Instalar dependencias:**
 
    ```sh
    pip install django
@@ -39,7 +39,7 @@ Pasos para levantar el proyecto desde el ambiente Conda:
    pip install polarTransform 
    pip install vtk
 
-6.5. **Instalar dependencias extras para LINUX:**
+5. **Instalar dependencias extras para LINUX:**
 
    ```sh
    sudo apt update
@@ -50,11 +50,11 @@ Pasos para levantar el proyecto desde el ambiente Conda:
    sudo apt install xorg
 
 
-7. **Correr el servidor:**
+6. **Correr el servidor:**
 
    ```sh
    python manage.py runserver
 
-6. **Acceder via ip (indicada en la terminal):**
+7. **Acceder via ip (indicada en la terminal):**
 
    [Acceso a Simeco WEB vía localhost](http://127.0.0.1:8000/)
