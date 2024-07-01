@@ -5,7 +5,6 @@ import base64
 import numpy as np
 from . import views
 from .cartesianRemap import acomodarFOV
-from .cartesianRemap import pickel_images
 from io import BytesIO
 from PIL import Image
 import os
@@ -70,7 +69,8 @@ class ImageConsumer(WebsocketConsumer):
 
 class PickleHandler(WebsocketConsumer):
 
-    
+    indice =0
+    #model.validation_step(input_path,output_path)
     def connect(self):
         self.accept()
         
@@ -81,14 +81,23 @@ class PickleHandler(WebsocketConsumer):
 
     def receive(self, text_data):
         # Assuming you receive image data in base64 format
-        input_path = "./data/validation/labels"
-        output_path = "./results/"
-        model.validation_step(input_path,output_path)
         
-        # Convert image data to uint8
-        pickel_images("asd")
+        output_path = "./results/"
+        filenames = listdir(output_path)
+        
+        if len(filenames)>self.indice:
+            indice = 0
+        
+        image = cv2.imread(path.join(output_path, filenames[self.indice]))
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-        self.send(text_data=json.dumps({"image_data": "a"}))
+        indice+=1
+        # Convert image data to uint8
+        image_data = acomodarFOV(image)
+
+        image_base64= formatAsBitStream(image_data=image_data)
+
+        self.send(text_data=json.dumps({"image_data": image_base64}))
 
 
 

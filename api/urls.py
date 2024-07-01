@@ -9,7 +9,7 @@ urlpatterns = [
     path('red256/', views.red256, name='Red 2 inferencia 256px'),  
     path('vtk/',views.vtk_visualizador, name='Ver recorte de la malla (ventana_aparte)'),
     path('image/', views.vtk_image, name='Imagen generada con recorte de la malla'),
-    path('fov/', views.pruebaFOV, name='Img output en cartesianas'),
+    #path('fov/', views.pruebaFOV, name='Img output en cartesianas'),
     path('malla/', views.mallaDelFOV, name='FOV del transductor en VTK (ventana_aparte)'),
     path('front/', include('frontend.urls'), name='SimecoWEB'),
     
