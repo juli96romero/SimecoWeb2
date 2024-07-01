@@ -1,2 +1,4 @@
 /data/
 *.cktp
+epoch=500-step=4008
+epoch=500-step=4008.cktp
