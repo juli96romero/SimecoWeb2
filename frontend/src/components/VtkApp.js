@@ -9,6 +9,7 @@ const VtkApp = () => {
   const vtkContainerRef = useRef(null);
   const context = useRef(null);
   const [representation, setRepresentation] = useState(2);
+  const actorRef = useRef(null); // Reference to the actor for moving it
 
   useEffect(() => {
     const fetchStlFiles = async () => { // Change the function name to fetchStlFiles
@@ -19,6 +20,29 @@ const VtkApp = () => {
       } catch (error) {
         console.error('Error fetching STL files:', error);
         return [];
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (actorRef.current) {
+        const position = actorRef.current.getPosition();
+        switch (event.key) {
+          case 'ArrowUp':
+            actorRef.current.setPosition(position[0], position[1] + 0.1, position[2]);
+            break;
+          case 'ArrowDown':
+            actorRef.current.setPosition(position[0], position[1] - 0.1, position[2]);
+            break;
+          case 'ArrowLeft':
+            actorRef.current.setPosition(position[0] - 0.1, position[1], position[2]);
+            break;
+          case 'ArrowRight':
+            actorRef.current.setPosition(position[0] + 0.1, position[1], position[2]);
+            break;
+          default:
+            break;
+        }
+        context.current.renderWindow.render();
       }
     };
 
@@ -51,7 +75,8 @@ const VtkApp = () => {
             const actor = vtkActor.newInstance();
             actor.setMapper(mapper);
             
-
+            actorRef.current = actor; // Store the reference to the actor
+            
             renderer.addActor(actor);
             
             renderer.resetCamera();
@@ -64,6 +89,8 @@ const VtkApp = () => {
       });
     }
 
+    window.addEventListener('keydown', handleKeyDown);
+
     return () => {
       if (context.current) {
         console.log('Cleaning up VTK...');
@@ -72,6 +99,7 @@ const VtkApp = () => {
         fullScreenRenderer.delete();
         context.current = null;
       }
+      window.removeEventListener('keydown', handleKeyDown);
     };
   }, [vtkContainerRef]);
 

@@ -17,6 +17,7 @@ import numpy as np
 from PIL import Image
 import math
 
+mallas = []
 
 #####funcionalidad de htmls:
 def extract_patterns(urlpatterns, base=''):
@@ -62,6 +63,20 @@ def list_stl_files(request):
 
 ###VTK visulization para ver el recorte
 
+def levantarMallas():
+    # Load a mesh from a file
+    folder_path = "api/stl-files"
+    stl_files = [f for f in os.listdir(folder_path) if f.endswith('.stl')]
+
+    if not stl_files:
+        print("No STL files found in the directory.")
+        return
+    for stl_file in stl_files:
+        reader = vtk.vtkSTLReader()
+        reader.SetFileName(os.path.join(folder_path, stl_file))
+        reader.Update()
+        mallas.append(reader.GetOutput())
+    return
 
 def update_visualization(request):
     if request.method == 'POST':
@@ -71,23 +86,17 @@ def update_visualization(request):
         return JsonResponse({'success': True})
     return JsonResponse({'success': False})
 
-def vtk_visualization(request,normal=[0.3, 0.5, 1]):
-    # Load a mesh from a file
-    folder_path = "api/stl-files"
-    stl_files = [f for f in os.listdir(folder_path) if f.endswith('.stl')]
 
-    if not stl_files:
-        print("No STL files found in the directory.")
-        return
+def vtk_visualization(request, normal=[0.3, 0.5, 1]):
+    
 
     # Set up VTK rendering
     renderer = vtk.vtkRenderer()
+    if (not mallas):
+        levantarMallas()
+    for malla in mallas:
 
-    for stl_file in stl_files:
-        reader = vtk.vtkSTLReader()
-        reader.SetFileName(os.path.join(folder_path, stl_file))
-        reader.Update()
-        liver_mesh = reader.GetOutput()
+        liver_mesh = malla
 
         # Get the filled slice for each mesh
         filled_slice = slice_and_fill_mesh_vtk(liver_mesh, origin=[0, 0, -0.02], normal=normal)
@@ -117,51 +126,31 @@ def vtk_visualization(request,normal=[0.3, 0.5, 1]):
     # Create a render window and interactor
     render_window = vtk.vtkRenderWindow()
     render_window.AddRenderer(renderer)
+
+    # Set the size of the render window
+    render_window.SetSize(1200, 800)  # Width and height in pixels
+
+    # Create a render window interactor
     render_window_interactor = vtk.vtkRenderWindowInteractor()
     render_window_interactor.SetRenderWindow(render_window)
 
     # Render and interact
     render_window.Render()
+    
+    # Attempt to bring the window to the front
+    render_window.SetWindowName("VTK Visualization")
+    render_window.Render()
+    render_window_interactor.Initialize()
     render_window_interactor.Start()
 
-    # Return rendered template
-    return render(request, 'api/vtk_visualization.html')
+    return True
+    # return render(request, 'api/vtk_visualization.html')
 
 
 ####SLICE AND FILL
 
 
-""" ###########VER SI ESTO SE PEUDE BORRAR
-def save_image(request):
-    if request.method == 'POST':
-        try:
-            data = request.json()
-            image_data = data.get('image', '')
-            if not image_data:
-                return JsonResponse({'error': 'No image data found'}, status=400)
 
-            # Decoding the base64 image data
-            format, imgstr = image_data.split(';base64,')
-            ext = format.split('/')[-1]
-            img_data = base64.b64decode(imgstr)
-
-            # Define the path to save the image
-            image_path = os.path.join(settings.MEDIA_ROOT, 'slices', 'slice.png')
-
-            # Ensure the directory exists
-            os.makedirs(os.path.dirname(image_path), exist_ok=True)
-
-            # Write the image data to the file
-            with open(image_path, 'wb') as f:
-                f.write(img_data)
-
-            return JsonResponse({'message': 'Image saved successfully'})
-
-        except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
-    return JsonResponse({'error': 'Invalid request method'}, status=405)
-
-"""
 
 ###########fovmesh
 
@@ -396,21 +385,12 @@ def vtk_visualization_image(request): #de /front es el que hace todo
     y = data['y']
     z = data['z']
 
-    folder_path = "api/stl-files"
-    stl_files = [f for f in os.listdir(folder_path) if f.endswith('.stl')]
     
-    if not stl_files:
-        print("No STL files found in the directory.")
-        return HttpResponse("No STL files found in the directory.")
-
-    # Create a vtkAppendPolyData to combine all meshes
     append_filter = vtk.vtkAppendPolyData()
-
-    for stl_file in stl_files:
-        reader = vtk.vtkSTLReader()
-        reader.SetFileName(os.path.join(folder_path, stl_file))
-        reader.Update()
-        append_filter.AddInputData(reader.GetOutput())
+    if (not mallas):
+        levantarMallas()
+    for malla in mallas:
+        append_filter.AddInputData(malla)
 
     append_filter.Update()
     combined_mesh = append_filter.GetOutput()
@@ -426,6 +406,11 @@ def vtk_visualization_image(request): #de /front es el que hace todo
     return slice_image
 
 
+def red128(request):
+    return render(request, 'api/red128.html')
+
+def red256(request):
+    return render(request, 'api/red256.html')
 
 def vtk_image(request):
     return render(request, 'api/vtk_image.html')
@@ -433,9 +418,5 @@ def vtk_image(request):
 def pruebaFOV(request):
     return render(request, 'api/fov.html')
 
-def red128(request):
-    return render(request, 'api/red128.html')
-
-def red256(request):
-    return render(request, 'api/red256.html')
-
+def vtk_visualizador(request):
+    return render(request, 'api/vtk_visualizador.html')

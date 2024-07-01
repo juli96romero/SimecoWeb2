@@ -52,21 +52,21 @@
 
 <div class="container">
     <button id="sendMessageButton" onclick="history.back()">Volver</button>
-    <h1>VTK Visualization</h1>
+    <h1>VTK Visualizar en modo ventana</h1>
     <form id="normal-form">
         <div class="form-group">
             <label for="normal-x">Normal X:</label>
-            <input type="number" id="normal-x" name="normal-x" step="0.01" required>
+            <input type="number" id="normal-x" name="normal-x" step="0.01" value="0.15" required>
         </div>
         <div class="form-group">
             <label for="normal-y">Normal Y:</label>
-            <input type="number" id="normal-y" name="normal-y" step="0.01" required>
+            <input type="number" id="normal-y" name="normal-y" step="0.01" value="0.15" required>
         </div>
         <div class="form-group">
             <label for="normal-z">Normal Z:</label>
-            <input type="number" id="normal-z" name="normal-z" step="0.01" required>
+            <input type="number" id="normal-z" name="normal-z" step="0.01" value="0.99" required>
         </div>
-        <button type="submit" class="btn">Update Visualization</button>
+        <button type="submit" class="btn">Visualizar</button>
     </form>
 </div>
 
@@ -78,7 +78,7 @@
         const normalY = parseFloat(document.getElementById('normal-y').value);
         const normalZ = parseFloat(document.getElementById('normal-z').value);
 
-        fetch('/api/update_visualization', {
+        fetch('/api/update_visualization/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -97,6 +97,17 @@
             }
         })
         .catch(error => console.error('Error:', error));
+    });
+
+    // Allow Tab key to move to the next input field
+    const inputs = document.querySelectorAll('.form-group input');
+    inputs.forEach((input, index) => {
+        input.addEventListener('keydown', function(event) {
+            if (event.key === 'Tab' && index < inputs.length - 1) {
+                event.preventDefault();
+                inputs[index + 1].focus();
+            }
+        });
     });
 </script>
 

@@ -51,20 +51,18 @@ def pickel_images(self):
 def acomodarFOV(img):
     width = img.shape[1]
     height = img.shape[0]
-    # Restaurar la imagen original para usar las propiedades del pickle
+    # 1ero tengo que restaurar la imagen original para coincidir con las propiedades de las coordenadas polares guardadas en el archivo pickle
     m2 = cv2.getRotationMatrix2D(((height-1)/2.0,(width-1)/2.0),90,1)
     rotatedImage = cv2.warpAffine(img,m2,(height,width))
-    #scaledImage = scale_image(rotatedImage, 560, 196)
     scaledImage = scale_image(rotatedImage, 612, 203)  
-    #superior = np.zeros((315,560,3), dtype=scaledImage.dtype)
     superior = np.zeros((333,612,3), dtype=scaledImage.dtype)
-    #inferior = np.zeros((94,560,3), dtype=scaledImage.dtype)
     inferior = np.zeros((103,612,3), dtype=scaledImage.dtype)
     conc_1 = cv2.vconcat([superior,scaledImage])
-    
     conc_2 = cv2.vconcat([conc_1,inferior])
-   
     
+    # Conc_2 deberias tener una dimension de (639, 612, 3)
     reconstructedImage = ptSettings.convertToCartesianImage(conc_2)
-       
+    # Guardamos la imagen   
+    
+
     return reconstructedImage

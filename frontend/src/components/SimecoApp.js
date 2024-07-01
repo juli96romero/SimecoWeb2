@@ -9,7 +9,7 @@ const SimecoApp = () => {
   const yRef = useRef(yValue);
   const zRef = useRef(zValue);
 
-  const url = `ws://${window.location.host}/ws/socket-server/`;
+  const url = `ws://${window.location.host}/ws/socket-principal-front/`;
   const chatSocket = new WebSocket(url);
   let buttonState = false;
 
@@ -21,7 +21,6 @@ const SimecoApp = () => {
 
   useEffect(() => {
     const receivedImage = document.getElementById("receivedImage");
-    const receivedImage_new = document.getElementById("receivedImage_new");
     const button = document.getElementById("sendMessageButton");
     const slider = document.getElementById("scaleSlider");
 
@@ -33,13 +32,6 @@ const SimecoApp = () => {
         receivedImage.src = "data:image/png;base64," + data.image_data;
         receivedImage.style.display = "block";
         if (buttonState) sendMessage();
-      } else {
-        console.error("Received empty or undefined image_data");
-      }
-      if (data.new_image_data) {
-        receivedImage_new.src = "data:image/png;base64," + data.new_image_data;
-        receivedImage_new.style.display = "block";
-        
       } else {
         console.error("Received empty or undefined image_data");
       }
@@ -113,9 +105,6 @@ const SimecoApp = () => {
       <div id="imageContainer">
         <div id="messages"></div>
         <img id="receivedImage" style={{ display: "none" }} alt="Received Image" />
-      </div>
-      <div id="imageContainer_new">
-        <img id="receivedImage_new" style={{ display: "none" }} alt="Received Image New" />
       </div>
     </div>
   );

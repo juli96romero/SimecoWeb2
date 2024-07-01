@@ -31,10 +31,10 @@ cfg = dict(
     val_dir = "./data/validation/",
     test_dir = "./data/test/",
     num_images = 496,
-    image_size = 256,       #CAMBIADOS#####################################
+    image_size = 128,
     
     num_epochs = 501,
-    batch_size = 256,       # paper original usa instance normalization  
+    batch_size = 128,       # paper original usa instance normalization  
     lr = 2e-4,
     display_step = 5,
     adversarial_criterion = nn.BCEWithLogitsLoss(), # vanilla loss 
@@ -133,7 +133,7 @@ def reformat_label(label):
 #esto no se si va aca o como definicion
 train_transform = A.Compose(
 [
-    A.Resize(width=256, height=256), # default INTER_LINEAR interpolation#######################CAMBIADOS
+    A.Resize(width=128, height=128), # default INTER_LINEAR interpolation
     A.HorizontalFlip(p=0.5),
     A.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
     A.ToFloat(),
@@ -144,7 +144,7 @@ train_transform = A.Compose(
 )
 test_transform = A.Compose(
     [
-        A.Resize(width=256, height=256), # default INTER_LINEAR interpolation##############CAMBIADOS
+        A.Resize(width=128, height=128), # default INTER_LINEAR interpolation
         ToTensorV2(),
     ],
 )
@@ -611,8 +611,8 @@ class Pix2Pix(pl.LightningModule):
 
 
     def short_valid_step_256(self,input_path,output_path):
-        self.indice=0
-        input_path= "./results/imagenesTomadasDeVTK/"
+        
+        input_path = "./data/validation/labels"
         # Genero las imagenes simuladas 
         self.gen.eval() # modelo en modo eval
         filenames = listdir(input_path)
@@ -657,26 +657,40 @@ class Pix2Pix(pl.LightningModule):
 
 
 
-    def valid_step256_fromImage(self,img):
-        
-        input_path = "./data/validation/labels"
-        filenames = listdir(input_path)
-        output_path = "./results/imagenesTomadasDeVTK/"
-        label2 = load_image(path.join(input_path, filenames[0]))
-
-
-        # Genero las imagenes simuladas 
-        self.gen.eval() # modelo en modo eval
-        label = img
-        self.indice+=1
-        
-        label = self.scale_image(label) #cambio de 128 a 256 la imagen despues de generada
+    def valid_step256_fromImage(self,img_generada):
+        """
         same_shape = label2.shape == label.shape
         same_dtype = label2.dtype == label.dtype
 
+        if same_shape and same_dtype:
+            print("Las imágenes tienen el mismo formato.")
+        else:
+            print("Las imágenes NO tienen el mismo formato.")"""
+        print("")
+        output_path = "./results/imagenesTomadasDeVTK/"
+        os.makedirs(output_path, exist_ok=True)
+        input_path = "./data/validation/labels"
+        image = Image.fromarray(img_generada.astype('uint8'), 'RGB')
+        image.save(os.path.join(output_path, 'reddd1.png'))
         
+        
+        
+       
+        
+        
+        # Genero las imagenes simuladas 
+        self.gen.eval() # modelo en modo eval
+        label = img_generada
+        self.indice+=1
+        #save_image(mat_image, path.join(output_path, str(self.indice)+'.png')) 
+        #label = load_image(path.join(input_path, filenames[self.indice]))
+        #label = self.scale_image(label) #cambio de 128 a 256 la imagen despues de generada
+        
+       
+        image = Image.fromarray(label.astype('uint8'), 'RGB')
+        image.save(os.path.join(output_path, 'reddd2.png'))
         mask = reformat_label(label)
-        save_image(img, path.join(output_path,filenames[0] + '.png')) 
+        #save_image(img, path.join(output_path,filenames[0] + '.png')) 
 
         # TODO: Ver porque poronga tengo que hacer la transformación de una imagen (label-RGB) si o si y no puedo mandar solo la mask
         transformed = test_transform(image=label, mask=mask)
@@ -685,7 +699,7 @@ class Pix2Pix(pl.LightningModule):
         mask = transformed['mask'] #input
         
         mask = torch.unsqueeze(torch.unsqueeze(mask.float(),0),0)# convierto los labels a float y el canal de profundida = 1 
-
+        
         #print(mask.shape)
         
         fake_image = self.gen(mask)
@@ -701,8 +715,7 @@ class Pix2Pix(pl.LightningModule):
         #print(fake_image.shape)
 
         #fake_image = remap.acomodarFOV(img=fake_image)
-        
-        
+
 
         return fake_image 
 
@@ -737,44 +750,16 @@ class Pix2Pix(pl.LightningModule):
   
 
 def main(request):
-    print(f'PyTorch version: {torch.__version__}')
-    print(f'Pytorch Lightning: {pl.__version__}')
-    print("Torch version:",torch.__version__)
+    print("Levantando red en memoria con size=256")
 
-    print("Is CUDA enabled?",torch.cuda.is_available())
+    print("Cuda Disponible: ",torch.cuda.is_available())
 
     seed_everything(cfg['seed'])
-    print(cfg['seed'])
-
-
-    train_dataset = SimecoDataset(cfg['train_dir'], transform=train_transform)
-    #visualize_augmentations(train_dataset)
-
 
     model_path = "./epoch=500-step=4008.ckpt"
     model = Pix2Pix.load_from_checkpoint(model_path)
 
-
-    input_path = "./data/validation/labels"
-    output_path = "./results/" 
-    makedirs(output_path, exist_ok=True)
-
     # Genero las imagenes simuladas 
     model.eval() # modelo en modo eval
 
-
-    model.short_valid_step(input_path,output_path)
-
-    #model.validation_step(input_path,output_path)
-
     return model
-    #return HttpResponse("<h1>Hello</h1>")
-
-
-
-
-"""#if(data.type === 'connection_established'){
-                chatSocket.send(JSON.stringify({
-                    'message':'message'
-                }))
-            }"""

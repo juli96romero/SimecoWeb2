@@ -210,8 +210,6 @@ def visualize_augmentations(dataset, samples=5):
     plt.tight_layout()
     plt.show()
 
-
-
 class UpSampleConv(nn.Module):
 
     def __init__(self, in_channels, out_channels, kernel=4, strides=2, padding=1, activation=True, batchnorm=True, dropout=False):
@@ -263,7 +261,6 @@ class DownSampleConv(nn.Module):
             x = self.act(x)
         return x
     
-
 class UNetGenerator(nn.Module):
 
     def __init__(self, in_channels, out_channels):
@@ -454,8 +451,7 @@ def _weights_init(m):
     if isinstance(m, nn.BatchNorm2d):
         torch.nn.init.normal_(m.weight, 0.0, 0.02)
         torch.nn.init.constant_(m.bias, 0)
-
-        
+    
 def display_progress(cond, real, fake, current_epoch, path, figsize=(10,5)):
     """
     Save cond, real (original) and generated (fake)
@@ -490,7 +486,6 @@ def load_image(filename):
     
     return image
 
-
 class Pix2Pix(pl.LightningModule):
     
     def __init__(self, in_channels, out_channels, learning_rate=0.0002, lambda_recon=100, display_step=10):
@@ -511,8 +506,7 @@ class Pix2Pix(pl.LightningModule):
         self.recon_criterion = cfg['recon_criterion']               #nn.L1Loss()
 
         self.automatic_optimization = False
-        
-       
+             
     def _gen_step(self, real_images, conditioned_images):
         # Pix2Pix has adversarial and a reconstruction loss
         # adversarial loss
@@ -547,8 +541,7 @@ class Pix2Pix(pl.LightningModule):
         gen_opt = torch.optim.Adam(self.gen.parameters(), lr=lr)
         disc_opt = torch.optim.Adam(self.disc.parameters(), lr=lr)
         return disc_opt, gen_opt
-
-    
+  
     def training_step(self, batch, batch_idx):
         real, condition = batch
         condition = torch.unsqueeze(condition.float(),1) # convierto los labels a float y el canal de profundida = 1 
@@ -582,11 +575,7 @@ class Pix2Pix(pl.LightningModule):
         
         return scaledImage 
 
-
     indice = 0
-
-
-
     
     def short_valid_step(self,input_path,output_path):
         
@@ -743,51 +732,17 @@ class Pix2Pix(pl.LightningModule):
 
 
 
-
-
-
-
-  
-
 def main(request):
-    print(f'PyTorch version: {torch.__version__}')
-    print(f'Pytorch Lightning: {pl.__version__}')
-    print("Torch version:",torch.__version__)
+    print("Levantando red en memoria con size=128")
 
-    print("Is CUDA enabled?",torch.cuda.is_available())
+    print("Cuda Disponible: ",torch.cuda.is_available())
 
     seed_everything(cfg['seed'])
-    print(cfg['seed'])
-
-
-    train_dataset = SimecoDataset(cfg['train_dir'], transform=train_transform)
-    #visualize_augmentations(train_dataset)
-
 
     model_path = "./epoch=500-step=4008.ckpt"
     model = Pix2Pix.load_from_checkpoint(model_path)
 
-
-    input_path = "./data/validation/labels"
-    output_path = "./results/" 
-    makedirs(output_path, exist_ok=True)
-
     # Genero las imagenes simuladas 
     model.eval() # modelo en modo eval
 
-
-    model.short_valid_step(input_path,output_path)
-
-    #model.validation_step(input_path,output_path)
-
     return model
-    #return HttpResponse("<h1>Hello</h1>")
-
-
-
-
-"""#if(data.type === 'connection_established'){
-                chatSocket.send(JSON.stringify({
-                    'message':'message'
-                }))
-            }"""
