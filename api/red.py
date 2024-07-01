@@ -739,7 +739,7 @@ def main(request):
 
     seed_everything(cfg['seed'])
 
-    model_path = "./epoch=500-step=4008.ckpt"
+    model_path = "./data/epoch=500-step=4008.ckpt"
     model = Pix2Pix.load_from_checkpoint(model_path)
 
     # Genero las imagenes simuladas 
