@@ -16,6 +16,10 @@ module.exports = {
           loader: "babel-loader",
         },
       },
+      {
+        test: /\.css$/, // Regla para archivos CSS
+        use: ["style-loader", "css-loader"], // Usar style-loader y css-loader
+      },
     ],
   },
   optimization: {

@@ -1,16 +1,12 @@
-import React from "react";
-import SimecoApp from "./SimecoApp";
-import VtkApp from "./VtkApp";
+// src/components/App.js
+import React from 'react';
+import TryVTK from './TryVTK';
+
 
 const App = () => {
   return (
     <div className="app-container">
-      <div className="half-screen">
-        <SimecoApp />
-      </div>
-      <div className="half-screen">
-        <VtkApp />
-      </div>
+      <TryVTK/>
     </div>
   );
 };

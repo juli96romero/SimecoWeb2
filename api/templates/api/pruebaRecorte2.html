@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8'>
+    <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+    <title>SimecoWeb</title>
+    <meta name='viewport' content='width=device-width, initial-scale=1'>
+    <style>
+        #titleAndButton {
+            text-align: center;
+            position: absolute;
+            top: 2%;
+            width: 100%;
+        }
+        #titleAndButton h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        #sendMessageButton {
+            font-size: 1.5em;
+            margin-top: 10px;
+        }
+
+        body, html {
+            height: 100%;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .image-container img {
+            max-width: 100%;
+            max-height: 100%;
+            display: block;
+            margin-top: 20px;
+        }
+        #scaleSlider {
+            width: 50%;
+            margin-top: 10px;
+        }
+        .variable-input {
+            margin-top: 10px;
+            font-size: 1.2em;
+        }
+    </style>
+</head>
+<body>
+    <div id="titleAndButton">
+        <h1>Simeco Web</h1>
+        <button id="sendMessageButton">Generar</button>
+        <input type="range" min="1" max="3.5" value="2" step="0.1" id="scaleSlider">
+        <button id="sendMessageButton" onclick="history.back()">Volver</button>
+        <div>
+            <input type="number" id="variableX" class="variable-input" placeholder="Valor de x" value="0.3">
+            <input type="number" id="variableY" class="variable-input" placeholder="Valor de y" value="0.3">
+            <input type="number" id="variableZ" class="variable-input" placeholder="Valor de z" value="0.99">
+        </div>
+    </div>
+    <div id="messages"></div>
+    <div class="image-container">
+        <img id="fullImage" style="display: none;" alt="Full Image"/>
+        <img id="subImage" style="display: none;" alt="Sub Image"/>
+        <img id="maskImage" style="display: none;" alt="Mask Image"/>
+    </div>
+    <script type="text/javascript">
+        let url = `ws://${window.location.host}/ws/socket-prueba2/`;
+        let buttonState = false;
+        const chatSocket = new WebSocket(url);
+
+        chatSocket.onmessage = function(e) {
+            let data = JSON.parse(e.data);
+            console.log('Data:', data);
+        
+            if (data.full_image && data.subimage && data.mask_image) {
+                document.getElementById("fullImage").src = 'data:image/png;base64,' + data.full_image;
+                document.getElementById("fullImage").style.display = "block";
+                
+                document.getElementById("subImage").src = 'data:image/png;base64,' + data.subimage;
+                document.getElementById("subImage").style.display = "block";
+                
+                document.getElementById("maskImage").src = 'data:image/png;base64,' + data.mask_image;
+                document.getElementById("maskImage").style.display = "block";
+                
+                if (buttonState) sendMessage();
+            } else {
+                console.error("Received incomplete data");
+            }
+        };
+
+        function sendMessage() {
+            let x = parseFloat(document.getElementById("variableX").value);
+            let y = parseFloat(document.getElementById("variableY").value);
+            let z = parseFloat(document.getElementById("variableZ").value);
+        
+            chatSocket.send(JSON.stringify({
+                'message': 'message',
+                'x': x + 0.01 * (Math.random() * 2 - 1),
+                'y': y + 0.01 * (Math.random() * 2 - 1),
+                'z': z + 0.01 * (Math.random() * 2 - 1),
+            }));
+        }
+
+        function buttonPressed(){
+            buttonState = !buttonState;
+            sendMessage();
+        }
+
+        document.getElementById("sendMessageButton").addEventListener("click", buttonPressed);
+
+        var slider = document.getElementById("scaleSlider");
+        slider.oninput = function() {
+            var scaleValue = this.value;
+            document.querySelectorAll(".image-container img").forEach(img => {
+                img.style.transform = "scale(" + scaleValue + ")";
+            });
+        };
+    </script>
+</body>
+</html>

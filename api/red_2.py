@@ -31,7 +31,7 @@ cfg = dict(
     val_dir = "./data/validation/",
     test_dir = "./data/test/",
     num_images = 496,
-    image_size = 128,
+    image_size = 256,
     
     num_epochs = 501,
     batch_size = 128,       # paper original usa instance normalization  
@@ -133,7 +133,7 @@ def reformat_label(label):
 #esto no se si va aca o como definicion
 train_transform = A.Compose(
 [
-    A.Resize(width=128, height=128), # default INTER_LINEAR interpolation
+    A.Resize(width=256, height=256), # default INTER_LINEAR interpolation
     A.HorizontalFlip(p=0.5),
     A.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
     A.ToFloat(),
@@ -144,7 +144,7 @@ train_transform = A.Compose(
 )
 test_transform = A.Compose(
     [
-        A.Resize(width=128, height=128), # default INTER_LINEAR interpolation
+        A.Resize(width=256, height=256), # default INTER_LINEAR interpolation
         ToTensorV2(),
     ],
 )
@@ -210,8 +210,6 @@ def visualize_augmentations(dataset, samples=5):
     plt.tight_layout()
     plt.show()
 
-
-
 class UpSampleConv(nn.Module):
 
     def __init__(self, in_channels, out_channels, kernel=4, strides=2, padding=1, activation=True, batchnorm=True, dropout=False):
@@ -263,7 +261,6 @@ class DownSampleConv(nn.Module):
             x = self.act(x)
         return x
     
-
 class UNetGenerator(nn.Module):
 
     def __init__(self, in_channels, out_channels):
@@ -454,8 +451,7 @@ def _weights_init(m):
     if isinstance(m, nn.BatchNorm2d):
         torch.nn.init.normal_(m.weight, 0.0, 0.02)
         torch.nn.init.constant_(m.bias, 0)
-
-        
+    
 def display_progress(cond, real, fake, current_epoch, path, figsize=(10,5)):
     """
     Save cond, real (original) and generated (fake)
@@ -490,7 +486,6 @@ def load_image(filename):
     
     return image
 
-
 class Pix2Pix(pl.LightningModule):
     
     def __init__(self, in_channels, out_channels, learning_rate=0.0002, lambda_recon=100, display_step=10):
@@ -511,8 +506,7 @@ class Pix2Pix(pl.LightningModule):
         self.recon_criterion = cfg['recon_criterion']               #nn.L1Loss()
 
         self.automatic_optimization = False
-        
-       
+             
     def _gen_step(self, real_images, conditioned_images):
         # Pix2Pix has adversarial and a reconstruction loss
         # adversarial loss
@@ -547,8 +541,7 @@ class Pix2Pix(pl.LightningModule):
         gen_opt = torch.optim.Adam(self.gen.parameters(), lr=lr)
         disc_opt = torch.optim.Adam(self.disc.parameters(), lr=lr)
         return disc_opt, gen_opt
-
-    
+  
     def training_step(self, batch, batch_idx):
         real, condition = batch
         condition = torch.unsqueeze(condition.float(),1) # convierto los labels a float y el canal de profundida = 1 
@@ -582,117 +575,13 @@ class Pix2Pix(pl.LightningModule):
         
         return scaledImage 
 
-
-    indice = 0
-
-
-
-    
-    def short_valid_step(self,input_path,output_path):
+    def hacerInferencia(self,img_generada):
         
-       
-        # Genero las imagenes simuladas 
-        self.gen.eval() # modelo en modo eval
-        filenames = listdir(input_path)
-        label = load_image(path.join(input_path, filenames[self.indice]))
-        self.indice+=1
-        if self.indice>=len(filenames):
-            self.indice=0
-        mask = reformat_label(label)
-        # TODO: Ver porque poronga tengo que hacer la transformación de una imagen (label-RGB) si o si y no puedo mandar solo la mask
-        transformed = test_transform(image=label, mask=mask)
-        mask = transformed['mask'] #input
-        mask = torch.unsqueeze(torch.unsqueeze(mask.float(),0),0)# convierto los labels a float y el canal de profundida = 1 
-        fake_image = self.gen(mask)
-        # Save image
-        fake_image = fake_image[0,:,:,:].detach().cpu().numpy()
-        fake_image = (((np.transpose(fake_image, (1, 2, 0)) + 1) / 2.0)*255).astype(np.uint8) 
-        return fake_image 
-
-
-    def short_valid_step_256(self,input_path,output_path):
-        
-        input_path = "./data/validation/labels"
-        # Genero las imagenes simuladas 
-        self.gen.eval() # modelo en modo eval
-        filenames = listdir(input_path)
-        label = load_image(path.join(input_path, filenames[self.indice]))
-        self.indice+=1
-        if self.indice>=len(filenames):
-            self.indice=0
-        
-        #label = self.scale_image(label) #cambio de 128 a 256 la imagen antes de generada
-        
-        mask = reformat_label(label)
-        
-
-        # TODO: Ver porque poronga tengo que hacer la transformación de una imagen (label-RGB) si o si y no puedo mandar solo la mask
-        transformed = test_transform(image=label, mask=mask)
-        #aca el transforme me rompe todo y me la vuelve a bajar a 128
-        
-        mask = transformed['mask'] #input
-        
-        mask = torch.unsqueeze(torch.unsqueeze(mask.float(),0),0)# convierto los labels a float y el canal de profundida = 1 
-
-        #print(mask.shape)
-        
-        fake_image = self.gen(mask)
-        # Save image
- 
-        fake_image = fake_image[0,:,:,:].detach().cpu().numpy()
-        
-        
-        
-        fake_image = (((np.transpose(fake_image, (1, 2, 0)) + 1) / 2.0)*255).astype(np.uint8) 
-        #print(fake_image.shape)
-        fake_image = self.scale_image(fake_image)
-        #print(fake_image.shape)
-
-        #fake_image = remap.acomodarFOV(img=fake_image)
-        
-        
-
-        return fake_image 
-
-
-
-
-    def valid_step256_fromImage(self,img_generada):
-        """
-        same_shape = label2.shape == label.shape
-        same_dtype = label2.dtype == label.dtype
-
-        if same_shape and same_dtype:
-            print("Las imágenes tienen el mismo formato.")
-        else:
-            print("Las imágenes NO tienen el mismo formato.")"""
-        print("")
-        output_path = "./results/imagenesTomadasDeVTK/"
-        os.makedirs(output_path, exist_ok=True)
-        input_path = "./data/validation/labels"
-        image = Image.fromarray(img_generada.astype('uint8'), 'RGB')
-        image.save(os.path.join(output_path, 'reddd1.png'))
-        
-        
-        
-       
-        
-        
-        # Genero las imagenes simuladas 
         self.gen.eval() # modelo en modo eval
         label = img_generada
-        self.indice+=1
-        #save_image(mat_image, path.join(output_path, str(self.indice)+'.png')) 
-        #label = load_image(path.join(input_path, filenames[self.indice]))
-        #label = self.scale_image(label) #cambio de 128 a 256 la imagen despues de generada
-        
-       
-        image = Image.fromarray(label.astype('uint8'), 'RGB')
-        image.save(os.path.join(output_path, 'reddd2.png'))
+    
         mask = reformat_label(label)
-        #save_image(img, path.join(output_path,filenames[0] + '.png')) 
 
-        # TODO: Ver porque poronga tengo que hacer la transformación de una imagen (label-RGB) si o si y no puedo mandar solo la mask
         transformed = test_transform(image=label, mask=mask)
         #aca el transforme me rompe todo y me la vuelve a bajar a 128
         
@@ -700,23 +589,12 @@ class Pix2Pix(pl.LightningModule):
         
         mask = torch.unsqueeze(torch.unsqueeze(mask.float(),0),0)# convierto los labels a float y el canal de profundida = 1 
         
-        #print(mask.shape)
-        
         fake_image = self.gen(mask)
-        # Save image
  
         fake_image = fake_image[0,:,:,:].detach().cpu().numpy()
-        
-        
-        
+
         fake_image = (((np.transpose(fake_image, (1, 2, 0)) + 1) / 2.0)*255).astype(np.uint8) 
-        #print(fake_image.shape)
         fake_image = self.scale_image(fake_image)
-        #print(fake_image.shape)
-
-        #fake_image = remap.acomodarFOV(img=fake_image)
-
-
         return fake_image 
 
     
@@ -743,14 +621,8 @@ class Pix2Pix(pl.LightningModule):
 
 
 
-
-
-
-
-  
-
 def main(request):
-    print("Levantando red en memoria con size=256")
+    print("Levantando red en memoria con size=128")
 
     print("Cuda Disponible: ",torch.cuda.is_available())
 

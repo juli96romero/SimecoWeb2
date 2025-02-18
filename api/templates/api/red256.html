@@ -6,7 +6,6 @@
     <title>SimecoWeb</title>
     <meta name='viewport' content='width=device-width, initial-scale=1'>
     <style>
-        /* Estilo para el título y el botón */
         #titleAndButton {
             text-align: center;
             position: absolute;
@@ -14,15 +13,14 @@
             width: 100%;
         }
         #titleAndButton h1 {
-            font-size: 2em; /* Aumentar el tamaño del texto */
-            margin-bottom: 10px; /* Espacio entre el título y la barra */
+            font-size: 2em;
+            margin-bottom: 10px;
         }
         #sendMessageButton {
-            font-size: 1.5em; /* Aumentar el tamaño del botón */
-            margin-top: 10px; /* Espacio entre la barra y el botón */
+            font-size: 1.5em;
+            margin-top: 10px;
         }
 
-        /* Estilo para la imagen */
         body, html {
             height: 100%;
             margin: 0;
@@ -35,74 +33,87 @@
             max-width: 100%;
             max-height: 100%;
         }
-        #scaleSlider {
-            width: 50%;
-            margin-top: 10px; /* Espacio entre el botón y el control deslizante */
+        .slider-container {
+            width: 80%;
+            margin: 10px 0;
+        }
+        .slider-container label {
+            display: block;
+            text-align: center;
+            margin-bottom: 5px;
+        }
+        .slider-container input[type="range"] {
+            width: 100%;
         }
     </style>
 </head>
 <body>
     <div id="titleAndButton">
         <h1>Simeco Web</h1>
-        
-        <!-- Botón para enviar un mensaje -->
         <button id="sendMessageButton">Generar</button>
-        <!-- Control deslizante para ajustar la escala de la imagen -->
-        <input type="range" min="1" max="5" value="2" step="0.1" id="scaleSlider">
         <button id="sendMessageButton" onclick="history.back()">Volver</button>
     </div>
 
-    <!-- Espacio para mostrar mensajes -->
-    <div id="messages"></div>
+    <div id="sliders">
+        <!-- Controles deslizantes -->
+        <div class="slider-container">
+            <label>Brillo General</label>
+            <input type="range" min="0" max="100" value="50" step="1" class="brightness-slider" data-index="general">
+        </div>
+        <div class="slider-container">
+            <label>Franja 1</label>
+            <input type="range" min="0" max="100" value="50" step="1" class="brightness-slider" data-index="0">
+        </div>
+        <div class="slider-container">
+            <label>Franja 2</label>
+            <input type="range" min="0" max="100" value="50" step="1" class="brightness-slider" data-index="1">
+        </div>
+        <div class="slider-container">
+            <label>Franja 3</label>
+            <input type="range" min="0" max="100" value="50" step="1" class="brightness-slider" data-index="2">
+        </div>
+        <div class="slider-container">
+            <label>Franja 4</label>
+            <input type="range" min="0" max="100" value="50" step="1" class="brightness-slider" data-index="3">
+        </div>
+        <div class="slider-container">
+            <label>Franja 5</label>
+            <input type="range" min="0" max="100" value="50" step="1" class="brightness-slider" data-index="4">
+        </div>
+        <div class="slider-container">
+            <label>Franja 6</label>
+            <input type="range" min="0" max="100" value="50" step="1" class="brightness-slider" data-index="5">
+        </div>
+    </div>
 
-    <!-- Imagen oculta inicialmente -->
     <img id="receivedImage" style="display: none;" alt="Received Image"/>
 
-    <script type="text/javascript">
+    <script>
         let url = `ws://${window.location.host}/ws/socket-principal256/`;
-        let buttonState = false;
         const chatSocket = new WebSocket(url);
 
         chatSocket.onmessage = function(e) {
             let data = JSON.parse(e.data);
-            console.log('Data:', data);
-        
-            // Verificar si image_data está definida y no está vacía
             if (data.image_data) {
-                // Actualizar la fuente de la imagen con la cadena base64 recibida
                 document.getElementById("receivedImage").src = 'data:image/png;base64,' + data.image_data;
-                document.getElementById("receivedImage").style.display = "block"; // Mostrar la imagen
-                if(buttonState)
-                    sendMessage();
-            } else {
-                console.error("Received empty or undefined image_data");
+                document.getElementById("receivedImage").style.display = "block";
             }
         };
 
-        // Función para enviar un mensaje
         function sendMessage() {
-            chatSocket.send(JSON.stringify({
-                'message': 'message'
+            const sliders = document.querySelectorAll('.brightness-slider');
+            const brightnessValues = Array.from(sliders).map(slider => ({
+                index: slider.dataset.index,
+                value: parseInt(slider.value, 10)
             }));
+            chatSocket.send(JSON.stringify({ brightness: brightnessValues }));
         }
 
-        function buttonPressed(){
-            buttonState=!buttonState
-            sendMessage()
-        }
+        document.getElementById("sendMessageButton").addEventListener("click", sendMessage);
 
-        // Agregar un event listener al botón
-        document.getElementById("sendMessageButton").addEventListener("click", buttonPressed);
-
-        // Obtener el control deslizante
-        var slider = document.getElementById("scaleSlider");
-
-        // Escuchar cambios en el control deslizante
-        slider.oninput = function() {
-            var scaleValue = this.value;
-            document.getElementById("receivedImage").style.transform = "scale(" + scaleValue + ")";
-        };
-    
+        document.querySelectorAll('.brightness-slider').forEach(slider => {
+            slider.addEventListener('input', sendMessage);
+        });
     </script>
 </body>
 </html>

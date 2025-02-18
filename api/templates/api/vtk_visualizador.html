@@ -70,6 +70,37 @@
     </form>
 </div>
 
+<form id="movement-form">
+    <button type="button" class="btn" onclick="moveObject('left')">Move Left</button>
+    <button type="button" class="btn" onclick="moveObject('right')">Move Right</button>
+    <button type="button" class="btn" onclick="moveObject('up')">Move Up</button>
+    <button type="button" class="btn" onclick="moveObject('down')">Move Down</button>
+</form>
+
+<script>
+    function moveObject(direction) {
+        fetch('/api/update_position/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                direction: direction
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('Position updated successfully');
+            } else {
+                console.error('Failed to update position');
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+</script>
+
 <script>
     document.getElementById('normal-form').addEventListener('submit', function(event) {
         event.preventDefault();

@@ -1,0 +1,94 @@
+/* TryVTK.css */
+
+/* Estilos para el contenedor principal */
+.app-container {
+    display: flex;
+    height: 100vh;
+  }
+  
+  /* Estilos para la mitad izquierda de la pantalla */
+  .half-screen-left {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  /* Estilos para el contenedor de la imagen */
+  #imageContainer {
+    flex: 1;
+    position: relative;
+  }
+  
+  /* Estilos para la imagen recibida */
+  #receivedImage {
+    display: none; /* Ocultar por defecto */
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  /* Estilos para la mitad derecha de la pantalla */
+  .half-screen-right {
+    flex: 1;
+    position: relative;
+  }
+  
+  /* Estilos para el contenedor de VTK */
+  .vtk-container {
+    width: 70%;
+    height: 70%;
+  }
+  
+  /* Estilos para los controles */
+  #controls {
+    padding-top: 10px;
+    text-align: center;
+    position: absolute;
+    bottom: 10px;
+    width: 100%;
+  }
+  
+  /* Estilos para el contenedor de los sliders */
+  .slider-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  /* Estilos para los sliders */
+  input[type="range"] {
+    width: 80%;
+    margin: 5px 0;
+  }
+
+  /* TryVTK.css */
+  #receivedImage {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: none; /* Ocultar por defecto */
+  }
+  
+  #receivedImage.visible {
+    display: block; /* Mostrar cuando tenga la clase "visible" */
+  }
+
+  .arrow-buttons {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 20px;
+  }
+  
+  .arrow-button {
+    font-size: 24px;
+    padding: 10px 20px;
+    border: none;
+    background-color: #007bff;
+    color: white;
+    cursor: pointer;
+    border-radius: 5px;
+  }
+  
+  .arrow-button:hover {
+    background-color: #0056b3;
+  }

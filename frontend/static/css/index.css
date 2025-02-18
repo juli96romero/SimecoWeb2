@@ -1,77 +1,107 @@
-/* Ensure the body and html take full height and are centered */
+/* Ensure the body and html take full height */
 body, html {
   height: 100%;
   margin: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  font-family: Arial, sans-serif; /* Set a clean font for the app */
 }
 
-/* Container for splitting the screen into two halves */
+/* Container for splitting the screen into two sections */
 .app-container {
-  display: grid;
-  grid-template-columns: 1fr 1fr; /* Split the screen into two equal columns */
+  display: flex;
   width: 100%;
   height: 100vh; /* Full viewport height */
 }
 
 .half-screen {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.half-screen-left {
+  width: 75%; /* 3/4 of the width */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #000; /* Black background */
+}
+
+.half-screen-right {
+  width: 25%; /* 1/4 of the width */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Container for the image */
+#imageContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  background-color: #000; /* Black background */
+}
+
+#receivedImage {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain; /* Maintain aspect ratio */
+  display: block;
+}
+
+/* Container for the VTK viewer */
+#vtkViewer {
+  flex: 1; /* Takes up available space in the container */
+  height: 100%; /* Full height of the container */
+}
+
+/* Styling for the control section */
+#controls {
+  background-color: #f9f9f9; /* Light background for contrast */
+  border-radius: 10px; /* Rounded corners */
+  padding: 15px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* Subtle shadow for depth */
+  flex-shrink: 0; /* Prevent shrinking */
+   /* Pushes the controls to the bottom */
+}
+
+/* Styling for the input values */
+#inputValues {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start; /* Align content to the top */
 }
 
-/* Center the title and button container */
-#titleAndButton {
-  text-align: center;
-  margin-top: 20px; /* Add margin to the top */
-  margin-bottom: 20px;
+#inputValues label {
+  margin: 5px;
+  font-weight: bold;
 }
 
-#titleAndButton h1 {
-  font-size: 2em;
-  margin-bottom: 10px;
+#inputValues input {
+  margin: 5px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  padding: 5px;
+  width: 100px;
 }
 
+/* Button styling */
 #sendMessageButton {
-  font-size: 1.5em;
-  width: 200px;
-  margin-bottom: 10px;
+  background-color: #007BFF; /* Primary blue color */
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 10px 20px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.3s ease;
 }
 
-/* Style for the slider */
-#scaleSlider {
-  width: 400px;
-  margin-bottom: 30px;
+#sendMessageButton:hover {
+  background-color: #0056b3; /* Darker blue on hover */
 }
 
-/* Center the image */
-#imageContainer {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 200px;
-}
-
-#imageContainer_new {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 200px;
-}
-
-#receivedImage {
-  max-width: 80%;
-  max-height: 80%;
-}
-
-#receivedImage {
-  max-width: 80%;
-  max-height: 80%;
-}
-
-#receivedImage_new {
-  max-width: 80%;
-  max-height: 80%;
+#sendMessageButton:focus {
+  outline: none; /* Remove outline on focus */
 }

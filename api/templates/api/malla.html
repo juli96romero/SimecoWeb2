@@ -56,15 +56,15 @@
     <form id="normal-form">
         <div class="form-group">
             <label for="normal-x">Normal X:</label>
-            <input type="number" id="normal-x" name="normal-x" step="0.01" required>
+            <input type="number" id="normal-x" name="normal-x" step="0.01" value="0.15" required>
         </div>
         <div class="form-group">
             <label for="normal-y">Normal Y:</label>
-            <input type="number" id="normal-y" name="normal-y" step="0.01" required>
+            <input type="number" id="normal-y" name="normal-y" step="0.01" value="0.15" required>
         </div>
         <div class="form-group">
             <label for="normal-z">Normal Z:</label>
-            <input type="number" id="normal-z" name="normal-z" step="0.01" required>
+            <input type="number" id="normal-z" name="normal-z" step="0.01" value="0.15" required>
         </div>
         <button type="submit" class="btn">Update Visualization</button>
     </form>
@@ -78,7 +78,7 @@
         const normalY = parseFloat(document.getElementById('normal-y').value);
         const normalZ = parseFloat(document.getElementById('normal-z').value);
 
-        fetch('/api/update_visualization', {
+        fetch('/api/update_normal/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
