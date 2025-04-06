@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
-import "@kitware/vtk.js/Rendering/Profiles/Geometry";
-import vtkFullScreenRenderWindow from "@kitware/vtk.js/Rendering/Misc/FullScreenRenderWindow";
-import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
-import vtkSTLReader from "@kitware/vtk.js/IO/Geometry/STLReader";
-import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
-import meshColors from "./meshColors";
-import "./TryVTK.css";
+import VTKViewer from "./VTKViewer";
+import ImageDisplay from "./ImageDisplay";
+import ControlButtons from "./ControlButtons";
+import ArrowButtons from "./ArrowButtons";
+import BrightnessSlider from "./BrightnessSlider";
 
 const TryVTK = () => {
   const [xValue, setXValue] = useState(0.3);
@@ -17,97 +15,83 @@ const TryVTK = () => {
   const [brightness2, setBrightness2] = useState(0);
   const [brightness3, setBrightness3] = useState(0);
   const [brightness4, setBrightness4] = useState(0);
+  const [brightness5, setBrightness5] = useState(0);
+  const [brightness6, setBrightness6] = useState(0);
+  const [brightness7, setBrightness7] = useState(0);
+  const [brightness8, setBrightness8] = useState(0);
 
-  const brightnessGeneralRef = useRef(brightnessGeneral);
-  const brightness1Ref = useRef(brightness1);
-  const brightness2Ref = useRef(brightness2);
-  const brightness3Ref = useRef(brightness3);
-  const brightness4Ref = useRef(brightness4);
+  // Estado para almacenar la posición del actor especial
+  const [specialActorPosition, setSpecialActorPosition] = useState([0, 0, 0]);
+
+  const brightnessRefs = useRef([
+    brightnessGeneral,
+    brightness1,
+    brightness2,
+    brightness3,
+    brightness4,
+    brightness5,
+    brightness6,
+    brightness7,
+    brightness8,
+  ]);
 
   const vtkContainerRef = useRef(null);
-  const context = useRef(null);
   const chatSocket = useRef(null);
   const buttonState = useRef(false);
-  const fovActorRef = useRef(null); // Ref para almacenar el actor de FOV
-  const transducerActorRef = useRef(null); // Ref para almacenar el actor del Transductor
 
+  // Estado para los contadores de flechas
   const [arrowUpCount, setArrowUpCount] = useState(0);
   const [arrowDownCount, setArrowDownCount] = useState(0);
   const [arrowLeftCount, setArrowLeftCount] = useState(0);
   const [arrowRightCount, setArrowRightCount] = useState(0);
 
-  const arrowUpRef = useRef(arrowUpCount);
-  const arrowDownRef = useRef(arrowDownCount);
-  const arrowLeftRef = useRef(arrowLeftCount);
-  const arrowRightRef = useRef(arrowRightCount);
-
+  // Función para manejar clics en las flechas
   const handleArrowClick = (direction) => {
     switch (direction) {
       case "up":
-        setArrowUpCount(arrowUpCount + 1);
+        setArrowUpCount((prev) => prev + 1);
         break;
       case "down":
-        setArrowDownCount(arrowDownCount + 1);
+        setArrowDownCount((prev) => prev + 1);
         break;
       case "left":
-        setArrowLeftCount(arrowLeftCount + 1);
+        setArrowLeftCount((prev) => prev + 1);
         break;
       case "right":
-        setArrowRightCount(arrowRightCount + 1);
+        setArrowRightCount((prev) => prev + 1);
         break;
       default:
         break;
     }
-    console.log("up",arrowUpCount);
-    console.log("down",arrowDownCount);
-    console.log("left",arrowLeftCount);
-    console.log("rght",arrowRightCount);
-    sendArrowCount(direction);
+
+    // Enviar la dirección de movimiento a través del WebSocket
+    sendMessage(direction);
+  };
+
+  const resetValues = () => {
+    setBrightnessGeneral(0);
+    setBrightness1(0);
+    setBrightness2(0);
+    setBrightness3(0);
+    setBrightness4(0);
+    setBrightness5(0);
+    setBrightness6(0);
+    setBrightness7(0);
+    setBrightness8(0);
+    setArrowUpCount(0);
+    setArrowDownCount(0);
+    setArrowLeftCount(0);
+    setArrowRightCount(0);
   };
 
   useEffect(() => {
-    brightnessGeneralRef.current = brightnessGeneral;
-  }, [brightnessGeneral]);
-  
-  useEffect(() => {
-    brightness1Ref.current = brightness1;
-  }, [brightness1]);
-
-  useEffect(() => {
-    brightness2Ref.current = brightness2;
-  }, [brightness2]);
-
-  useEffect(() => {
-    brightness3Ref.current = brightness3;
-  }, [brightness3]);
-
-  useEffect(() => {
-    brightness4Ref.current = brightness4;
-  }, [brightness4]);
-
-  useEffect(() => {
-    arrowUpRef.current = arrowUpCount;
-  }, [arrowUpCount]);
-
-  useEffect(() => {
-    arrowDownRef.current = arrowDownCount;
-  }, [arrowDownCount]);
-
-  useEffect(() => {
-    arrowLeftRef.current = arrowLeftCount;
-  }, [arrowLeftCount]);
-
-  useEffect(() => {
-    arrowRightRef.current = arrowRightCount;
-  }, [arrowRightCount]);
-
-  useEffect(() => {//websocket init
     chatSocket.current = new WebSocket(
       `ws://${window.location.host}/ws/socket-principal-front/`
     );
 
     chatSocket.current.onmessage = (e) => {
       const data = JSON.parse(e.data);
+      console.log(data.position);
       if (data.image_data) {
         setImageData(`data:image/png;base64,${data.image_data}`);
         if (buttonState.current) sendMessage();
@@ -121,177 +105,70 @@ const TryVTK = () => {
     };
   }, []);
 
-  const buttonPressed = () => {
-    buttonState.current = !buttonState.current;
-    sendMessage();
-  };
-
-  const sendMessage = () => {
-    //sconsole.log('bright', brightnessGeneralRef , brightness1Ref, brightness2Ref, brightness3Ref, brightness4Ref)
-    console.log("arrow",arrowUpRef, arrowDownRef,arrowLeftRef,arrowRightRef);
+  const sendMessage = (direction = null) => {
     chatSocket.current.send(
       JSON.stringify({
         message: "message",
         x: xValue + 0.01 * (Math.random() * 2 - 1),
         y: yValue + 0.01 * (Math.random() * 2 - 1),
         z: zValue + 0.01 * (Math.random() * 2 - 1),
-        brightness: brightnessGeneralRef.current,
-        brightness1: brightness1Ref.current,
-        brightness2: brightness2Ref.current,
-        brightness3: brightness3Ref.current,
-        brightness4: brightness4Ref.current,
-        
+        brightness: brightnessRefs.current[0],
+        brightness1: brightnessRefs.current[1],
+        brightness2: brightnessRefs.current[2],
+        brightness3: brightnessRefs.current[3],
+        brightness4: brightnessRefs.current[4],
+        brightness5: brightnessRefs.current[5],
+        brightness6: brightnessRefs.current[6],
+        brightness7: brightnessRefs.current[7],
+        brightness8: brightnessRefs.current[8],
+        arrowUp: arrowUpCount, // Usar el estado directamente
+        arrowDown: arrowDownCount, // Usar el estado directamente
+        arrowLeft: arrowLeftCount, // Usar el estado directamente
+        arrowRight: arrowRightCount, // Usar el estado directamente
+        specialActorPosition: specialActorPosition, // Enviar la posición del actor especial
+        direction: direction, // Enviar la dirección de movimiento
       })
     );
   };
 
-  useEffect(() => {
-    const fetchStlFiles = async () => {
-      try {
-        const response = await fetch("/api/stl-files/");
-        const data = await response.json();
-        return data;
-      } catch (error) {
-        console.error("Error fetching STL files:", error);
-        return { files: [], fov: [] };
-      }
-    };
-
-    if (!context.current && vtkContainerRef.current) {
-      const fullScreenRenderer = vtkFullScreenRenderWindow.newInstance({
-        rootContainer: vtkContainerRef.current,
-        containerStyle: { width: "100%", height: "100%" }, // Ajustar altura al 100%
-      });
-
-      const renderer = fullScreenRenderer.getRenderer();
-      const renderWindow = fullScreenRenderer.getRenderWindow();
-
-      context.current = {
-        fullScreenRenderer,
-        renderWindow,
-        renderer,
-      };
-
-      fetchStlFiles().then(({ files, fov }) => {
-        files.forEach((file) => {
-          console.log(file);
-          const reader = vtkSTLReader.newInstance();
-          reader
-            .setUrl(`/static/${file}`)
-            .then(() => {
-              const source = reader.getOutputData(0);
-              const mapper = vtkMapper.newInstance();
-              mapper.setInputData(source);
-              mapper.setScalarVisibility(false);
-              const actor = vtkActor.newInstance();
-              actor.setMapper(mapper);
-
-              const name = file.toLowerCase();
-              let assignedColor = [1.0, 1.0, 1.0];
-              for (const keyword in meshColors) {
-                if (name.includes(keyword.toLowerCase())) {
-                  assignedColor = meshColors[keyword];
-                  break;
-                }
-              }
-
-              actor.getProperty().setColor(...assignedColor);
-              actor.getProperty().setDiffuseColor(...assignedColor);
-              renderer.addActor(actor);
-            })
-            .catch((error) => {
-              console.error(`Error loading ${file}:`, error);
-            });
-        });
-        renderWindow.render();
-      });
-    }
-  }, []);
+  const buttonPressed = () => {
+    buttonState.current = !buttonState.current;
+    sendMessage();
+  };
 
   return (
     <div className="app-container">
       <div className="half-screen half-screen-left">
-        <div id="imageContainer">
-          <div id="messages"></div>
-          <img
-            id="receivedImage"
-            src={imageData}
-            className={imageData ? "visible" : "hidden"}
-            alt="Received Image"
-          />
-        </div>
+        <ImageDisplay imageData={imageData} />
       </div>
       <div className="half-screen half-screen-right">
         <div ref={vtkContainerRef} className="vtk-container" />
+        <VTKViewer
+          containerRef={vtkContainerRef}
+          onSpecialActorPositionChange={setSpecialActorPosition} // Pasar la función
+          specialActorPosition={specialActorPosition} // Pasar la posición actualizada
+        />
         <div id="controls">
-          <button id="sendMessageButton" onClick={buttonPressed}>
-            Generar
-          </button>
+          <ControlButtons onGenerate={buttonPressed} onReset={resetValues} />
+          <ArrowButtons onArrowClick={handleArrowClick} />
           <div className="slider-container">
-            <label htmlFor="brightnessGeneral">Brillo General</label>
-            <input
-              type="range"
-              id="brightnessGeneral"
-              min="-255"
-              max="255"
-              step="1"
+            <BrightnessSlider
+              label="Brillo General"
               value={brightnessGeneral}
-              onChange={(e) => setBrightnessGeneral(Number(e.target.value))}
+              onChange={setBrightnessGeneral}
             />
-            <label htmlFor="brightness1">Brillo 1</label>
-            <input
-              type="range"
-              id="brightness1"
-              min="-255"
-              max="255"
-              step="1"
-              value={brightness1}
-              onChange={(e) => setBrightness1(Number(e.target.value))}
-            />
-            <label htmlFor="brightness2">Brillo 2</label>
-            <input
-              type="range"
-              id="brightness2"
-              min="-255"
-              max="255"
-              step="1"
-              value={brightness2}
-              onChange={(e) => setBrightness2(Number(e.target.value))}
-            />
-            <label htmlFor="brightness3">Brillo 3</label>
-            <input
-              type="range"
-              id="brightness3"
-              min="-255"
-              max="255"
-              step="1"
-              value={brightness3}
-              onChange={(e) => setBrightness3(Number(e.target.value))}
-            />
-            <label htmlFor="brightness4">Brillo 4</label>
-            <input
-              type="range"
-              id="brightness4"
-              min="-255"
-              max="255"
-              step="1"
-              value={brightness4}
-              onChange={(e) => setBrightness4(Number(e.target.value))}
-            />
-          </div>
-          <div className="arrow-buttons">
-            <button className="arrow-button" onClick={() => handleArrowClick("up")}>
-              ↑
-            </button>
-            <button className="arrow-button" onClick={() => handleArrowClick("down")}>
-              ↓
-            </button>
-            <button className="arrow-button" onClick={() => handleArrowClick("left")}>
-              ←
-            </button>
-            <button className="arrow-button" onClick={() => handleArrowClick("right")}>
-              →
-            </button>
+            {[...Array(8)].map((_, i) => (
+              <BrightnessSlider
+                key={i}
+                label={`Brillo ${i + 1}`}
+                value={brightnessRefs.current[i + 1]}
+                onChange={(value) => {
+                  const newBrightness = [...brightnessRefs.current];
+                  newBrightness[i + 1] = value;
+                  brightnessRefs.current = newBrightness;
+                }}
+              />
+            ))}
           </div>
         </div>
       </div>

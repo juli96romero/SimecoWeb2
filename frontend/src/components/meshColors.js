@@ -8,6 +8,8 @@ const meshColors = {
     pancreas: [0, 0, 1.0],
     artery: [1.0, 0, 0],
     bones: [1.0, 1.0, 1.0],
+    skin: [1.0, 1.0, 1.0],
+    transductor: [1.0, 1.0, 1.0],
   };
   
   export default meshColors;

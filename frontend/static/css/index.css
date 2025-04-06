@@ -20,7 +20,7 @@ body, html {
 }
 
 .half-screen-left {
-  width: 75%; /* 3/4 of the width */
+  width: 75%; /* 75% of the width */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -28,8 +28,17 @@ body, html {
 }
 
 .half-screen-right {
-  width: 25%; /* 1/4 of the width */
+  width: 25%; /* 25% of the width */
   display: flex;
+  flex-direction: column;
+  background-color: #2c3e50; /* Dark blue background */
+  padding: 10px; /* Add some padding */
+}
+
+.button-container {
+  display: flex;
+  gap: 10px; /* Espacio entre los botones */
+  margin-bottom: 20px; /* Espacio debajo de los botones */
   flex-direction: column;
 }
 
@@ -41,67 +50,123 @@ body, html {
   width: 100%;
   height: 100%;
   background-color: #000; /* Black background */
+  position: relative; /* Added for positioning */
 }
 
 #receivedImage {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain; /* Maintain aspect ratio */
-  display: block;
+  display: none; /* Hidden by default */
+}
+
+#receivedImage.visible {
+  display: block; /* Show when the class "visible" is added */
 }
 
 /* Container for the VTK viewer */
 #vtkViewer {
   flex: 1; /* Takes up available space in the container */
-  height: 100%; /* Full height of the container */
+  height: 60%; /* Adjust height as needed */
+}
+
+.vtk-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
 }
 
 /* Styling for the control section */
 #controls {
-  background-color: #f9f9f9; /* Light background for contrast */
+  background-color: #34495e; /* Slightly lighter blue background */
   border-radius: 10px; /* Rounded corners */
   padding: 15px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* Subtle shadow for depth */
   flex-shrink: 0; /* Prevent shrinking */
-   /* Pushes the controls to the bottom */
+  display: flex;
+  gap: 15px; /* Space between columns */
 }
 
-/* Styling for the input values */
-#inputValues {
+/* Column for buttons */
+.button-column {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  gap: 10px; /* Space between buttons */
+  width: 50%; /* Half width for buttons */
 }
 
-#inputValues label {
-  margin: 5px;
-  font-weight: bold;
-}
-
-#inputValues input {
-  margin: 5px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  padding: 5px;
-  width: 100px;
+/* Column for sliders */
+.slider-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px; /* Space between sliders */
+  width: 50%; /* Half width for sliders */
 }
 
 /* Button styling */
-#sendMessageButton {
-  background-color: #007BFF; /* Primary blue color */
+#sendMessageButton, #resetButton {
+  background-color: #3498db; /* Light blue color */
   color: white;
   border: none;
   border-radius: 5px;
-  padding: 10px 20px;
+  padding: 8px 16px; /* Smaller padding */
   cursor: pointer;
-  font-size: 16px;
+  font-size: 14px; /* Smaller font size */
   transition: background-color 0.3s ease;
+  width: 100%; /* Full width of the column */
 }
 
-#sendMessageButton:hover {
-  background-color: #0056b3; /* Darker blue on hover */
+#sendMessageButton:hover, #resetButton:hover {
+  background-color: #2980b9; /* Darker blue on hover */
 }
 
-#sendMessageButton:focus {
+#sendMessageButton:focus, #resetButton:focus {
   outline: none; /* Remove outline on focus */
+}
+
+/* Arrow buttons container */
+.arrow-buttons {
+  display: flex;
+  flex-direction: column; /* Stack arrow buttons vertically */
+  gap: 10px; /* Space between arrow buttons */
+}
+
+/* Arrow button styling */
+.arrow-button {
+  font-size: 18px; /* Smaller font size */
+  padding: 8px 16px; /* Smaller padding */
+  border: none;
+  background-color: #3498db; /* Light blue color */
+  color: white;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: background-color 0.3s ease;
+  width: 100%; /* Full width of the column */
+}
+
+.arrow-button:hover {
+  background-color: #2980b9; /* Darker blue on hover */
+}
+
+/* Slider container */
+.slider-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start; /* Align sliders to the left */
+  gap: 5px; /* Space between sliders */
+  width: 100%; /* Full width of the column */
+}
+
+/* Slider styling */
+input[type="range"] {
+  width: 100%; /* Full width */
+  margin: 0; /* Remove margin */
+  cursor: pointer;
+}
+
+/* Label styling */
+label {
+  font-size: 12px; /* Smaller font size */
+  color: #ecf0f1; /* Light gray color */
+  margin-bottom: 5px; /* Space below labels */
 }

@@ -22,6 +22,23 @@ mallas = []
 mallas_colors = []
 transductor = []
 
+# Variables globales para el estado del transductor
+theta = 0  # Ángulo en el plano XY (en radianes)
+phi = 0    # Ángulo en el plano XZ (en radianes)
+psi = 0    # Ángulo en el plano YZ (en radianes)
+delta_angle = 0.02  # Incremento del ángulo por cada evento de teclado
+delta_angle_psi = 0.05  # Incremento del ángulo psi
+
+# Radios del elipsoide (ajustados según la malla de la piel)
+x_radius = 10.0
+y_radius = 15.0
+z_radius = 8.0
+
+# Centro del elipsoide
+center_x = 0.0
+center_y = 0.0
+center_z = 0.0
+
 
 mesh_colors = {
     'pelvis': (151/255.0, 151/255.0, 147/255.0),
@@ -113,6 +130,38 @@ def convert_vtk_polydata_to_json(polydata):
         })
     
     return data
+
+def move_transducer(action):
+    global theta, phi, psi
+
+
+    # Actualizar los ángulos según la acción
+    if action == 'left':
+        theta -= delta_angle
+    elif action == 'right':
+        theta += delta_angle
+    elif action == 'up':
+        phi += delta_angle
+    elif action == 'down':
+        phi -= delta_angle
+    elif action == 'a':
+        psi -= delta_angle_psi
+    elif action == 'd':
+        psi += delta_angle_psi
+
+    # Asegurarse de que los ángulos estén en el rango [0, 2*pi]
+    theta = theta % (2 * pi)
+    phi = phi % (2 * pi)
+    psi = psi % (2 * pi)
+
+    # Calcular la nueva posición en la superficie del elipsoide
+    x = center_x + x_radius * cos(theta) * cos(phi)
+    y = center_y + y_radius * sin(theta) * cos(psi)
+    z = center_z + z_radius * sin(phi) * cos(psi)
+
+
+    return (x, y, z)
+
 
 def levantarMallas():
     folder_path = "api/stl-files"
@@ -659,54 +708,47 @@ import vtk
 from math import cos, sin, pi
 from django.http import HttpResponse
 
-import vtk
-from math import sin, cos, pi
-from django.http import HttpResponse
-
-def createpoly_ellipsoid_with_mov(request): #definitiva que anda para los costados
-    # Cargar la malla de la piel para obtener sus límites y calcular el centro y los radios
-    skin_stl_path = "api/stl-files/0_skin.stl"
+def createpoly_ellipsoid_with_mov(request):
+    folder_path = "api/stl-files/0_skin.stl"
     reader = vtk.vtkSTLReader()
-    reader.SetFileName(skin_stl_path)
+    reader.SetFileName(folder_path)
     reader.Update()
+
+    # Obtener las dimensiones de la malla de la piel
     skin_poly_data = reader.GetOutput()
     bounds = skin_poly_data.GetBounds()
     print(f"Dimensiones de la malla de la piel: {bounds}")
 
-    # Calcular el centro de la piel (que usaremos para centrar el elipsoide)
-    center_x = (bounds[0] + bounds[1]) / 2.0
-    center_y = (bounds[2] + bounds[3]) / 2.0
-    center_z = (bounds[4] + bounds[5]) / 2.0
+    # Calcular los radios del elipsoide basados en las dimensiones de la malla
+    x_radius = (bounds[1] - bounds[0]) / 2.0  # Radio en X
+    y_radius = (bounds[3] - bounds[2]) / 2.0  # Radio en Y
+    z_radius = (bounds[5] - bounds[4]) / 2.0  # Radio en Z
 
-    # Calcular los radios basados en los límites y aumentar en un 5%
-    x_radius = (bounds[1] - bounds[0]) / 2.0
-    y_radius = (bounds[3] - bounds[2]) / 2.0
-    z_radius = (bounds[5] - bounds[4]) / 2.0
-
+    # Aumentar los radios en un 5%
     scale_factor = 1.05  # Aumento del 5%
     x_radius *= scale_factor
-    y_radius *= (scale_factor + 0.10)  # Ajuste adicional para Y, si es requerido
+    y_radius *= scale_factor + 0.10
     z_radius *= scale_factor
 
-    print(f"Radios del elipsoide: X={x_radius}, Y={y_radius}, Z={z_radius}")
+    print(f"Radios del elipsoide (aumentados en 5%): X={x_radius}, Y={y_radius}, Z={z_radius}")
 
-    # Crear renderer, ventana de renderizado e interactor
+    # Crear el renderer, la ventana de renderizado y el interactor
     renderer = vtk.vtkRenderer()
     render_window = vtk.vtkRenderWindow()
     render_window.AddRenderer(renderer)
     interactor = vtk.vtkRenderWindowInteractor()
     interactor.SetRenderWindow(render_window)
 
-    # --- La malla de la piel no se mostrará ---
-    # Si deseas visualizarla, puedes descomentar este bloque:
+    # Mapear y mostrar la piel
     skin_mapper = vtk.vtkPolyDataMapper()
     skin_mapper.SetInputConnection(reader.GetOutputPort())
+
     skin_actor = vtk.vtkActor()
     skin_actor.SetMapper(skin_mapper)
-    skin_actor.GetProperty().SetColor(1, 0.5, 0.5)  # Color rosado
+    skin_actor.GetProperty().SetColor(1, 0.5, 0.5)  # Color rosado para la piel
     renderer.AddActor(skin_actor)
 
-    # Crear el elipsoide utilizando los radios calculados
+    # Crear el elipsoide con los radios ajustados
     ellipsoid = vtk.vtkParametricEllipsoid()
     ellipsoid.SetXRadius(x_radius)
     ellipsoid.SetYRadius(y_radius)
@@ -714,7 +756,7 @@ def createpoly_ellipsoid_with_mov(request): #definitiva que anda para los costad
 
     ellipsoid_source = vtk.vtkParametricFunctionSource()
     ellipsoid_source.SetParametricFunction(ellipsoid)
-    ellipsoid_source.SetUResolution(50)
+    ellipsoid_source.SetUResolution(50)  # Resolución de la malla del elipsoide
     ellipsoid_source.SetVResolution(50)
     ellipsoid_source.Update()
 
@@ -723,90 +765,84 @@ def createpoly_ellipsoid_with_mov(request): #definitiva que anda para los costad
 
     ellipsoid_actor = vtk.vtkActor()
     ellipsoid_actor.SetMapper(ellipsoid_mapper)
-    ellipsoid_actor.GetProperty().SetColor(0.5, 0.5, 1)  # Color azul
-    ellipsoid_actor.GetProperty().SetOpacity(0.5)
-    # Centrar el elipsoide en el centro de la piel
+    ellipsoid_actor.GetProperty().SetColor(0.5, 0.5, 1)  # Color azul para el elipsoide
+    ellipsoid_actor.GetProperty().SetOpacity(0.5)  # Hacerlo semi-transparente
+
+    # Centrar el elipsoide en la misma posición que la malla de la piel
+    center_x = (bounds[0] + bounds[1]) / 2.0
+    center_y = (bounds[2] + bounds[3]) / 2.0
+    center_z = (bounds[4] + bounds[5]) / 2.0
     ellipsoid_actor.SetPosition(center_x, center_y, center_z)
     renderer.AddActor(ellipsoid_actor)
 
-    # Cargar el STL del transductor (objeto móvil)
-    transductor_stl_path = "api/stl-files/transductor_y_fov.stl"
-    transductor_reader = vtk.vtkSTLReader()
-    transductor_reader.SetFileName(transductor_stl_path)
-    transductor_reader.Update()
+    # Cargar el archivo .stl adicional que se moverá alrededor del elipsoide
+    moving_stl_path = "api/stl-files/transductor y fov.stl"
+    moving_reader = vtk.vtkSTLReader()
+    moving_reader.SetFileName(moving_stl_path)
+    moving_reader.Update()
 
-    transductor_mapper = vtk.vtkPolyDataMapper()
-    transductor_mapper.SetInputConnection(transductor_reader.GetOutputPort())
+    moving_mapper = vtk.vtkPolyDataMapper()
+    moving_mapper.SetInputConnection(moving_reader.GetOutputPort())
 
-    transductor_actor = vtk.vtkActor()
-    transductor_actor.SetMapper(transductor_mapper)
-    transductor_actor.GetProperty().SetColor(0, 1, 0)  # Color verde
-    renderer.AddActor(transductor_actor)
+    moving_actor = vtk.vtkActor()
+    moving_actor.SetMapper(moving_mapper)
+    moving_actor.GetProperty().SetColor(0, 1, 0)  # Color verde para el objeto móvil
+    renderer.AddActor(moving_actor)
 
-    # Variables para controlar el movimiento en dos ejes:
-    # Usaremos la parametrización del elipsoide:
-    #   x = center_x + x_radius * sin(θ) * cos(φ)
-    #   y = center_y + y_radius * sin(θ) * sin(φ)
-    #   z = center_z + z_radius * cos(θ)
-    #
-    # Donde:
-    #   - φ (phi) se moverá libremente de 0 a 2π (movimiento horizontal completo)
-    #   - θ (theta) se restringirá para no dar la vuelta completa (por ejemplo, entre 0.1 y π-0.1)
-    theta = pi / 2  # Posición inicial a mitad de camino entre los polos
-    phi = 0         # Posición inicial en el eje X positivo
-    delta_angle = 0.02  # Incremento de ángulo para cada pulsación de tecla
-    delta_z = 0.1  # Incremento de posición en Z para movimiento lineal
+    # Variables para controlar el movimiento
+    theta = 0  # Ángulo en el plano XY (en radianes)
+    phi = 0    # Ángulo en el plano XZ (en radianes)
+    psi = 0    # Ángulo en el plano YZ (en radianes)
+    delta_angle = 0.02  # Incremento del ángulo por cada evento de teclado
+    delta_angle_psi = 0.05  # Incremento del ángulo psi
 
+    # Función para actualizar la posición del objeto móvil
     def update_position():
-        nonlocal theta, phi, center_z
-        # Calcular la posición sobre la superficie del elipsoide
-        x = center_x + x_radius * sin(theta) * cos(phi)
-        y = center_y + y_radius * sin(theta) * sin(phi)
-        z = center_z + z_radius * cos(theta)
-        transductor_actor.SetPosition(x, y, z)
+        nonlocal theta, phi, psi
+        # Calcular la posición en la superficie del elipsoide
+        x = center_x + x_radius * cos(theta) * cos(phi)
+        y = center_y + y_radius * sin(theta) * cos(psi)
+        z = center_z + z_radius * sin(phi) * cos(psi)
+        moving_actor.SetPosition(x, y, z)
         render_window.Render()
 
+    # Función para manejar el movimiento del objeto
     def move_object(obj, event):
-        nonlocal theta, phi  # Mantenemos theta y phi
+        nonlocal theta, phi, psi
         key = obj.GetKeySym()
-
         if key == "Left":
-            phi -= delta_angle  # Mover a la izquierda (disminuye φ)
+            theta -= delta_angle  # Mover en sentido horario en el plano XY
         elif key == "Right":
-            phi += delta_angle  # Mover a la derecha (aumenta φ)
+            theta += delta_angle  # Mover en sentido antihorario en el plano XY
         elif key == "Up":
-            theta -= delta_angle  # Mover hacia arriba (disminuye θ)
+            phi += delta_angle  # Mover hacia arriba en el plano XZ
         elif key == "Down":
-            theta += delta_angle  # Mover hacia abajo (aumenta θ)
-        
+            phi -= delta_angle  # Mover hacia abajo en el plano XZ
+        elif key == "a":  # Tecla 'A' para mover en el plano YZ (sentido horario)
+            psi -= delta_angle_psi
+        elif key == "d":  # Tecla 'D' para mover en el plano YZ (sentido antihorario)
+            psi += delta_angle_psi
 
-        # Asegurar que φ se mantenga en el rango [0, 2π)
+        # Asegurarse de que los ángulos estén en el rango [0, 2*pi]
+        theta = theta % (2 * pi)
         phi = phi % (2 * pi)
+        psi = psi % (2 * pi)
 
-        # Limitar θ para evitar pasar por los polos (movimiento vertical restringido)
-        theta = max(0.1, min(theta, pi - 0.1))
+        # Actualizar la posición del objeto móvil
+        update_position()
 
-        # Calcular la posición sobre la superficie del elipsoide
-        # Modificamos la parametrización para que el movimiento izquierda/derecha sea en el plano XZ
-        x = center_x + x_radius * sin(theta) * cos(phi)
-        y = center_y + y_radius * cos(theta)  # Movimiento arriba/abajo (eje Y)
-        z = center_z + z_radius * sin(theta) * sin(phi)  # Movimiento adelante/atrás (eje Z)
-
-        # Actualizar la posición del transductor
-        transductor_actor.SetPosition(x, y, z)
-        render_window.Render()
-
-    # Asignar la función de control de teclado al interactor
+    # Asignar la función de manejo de eventos al interactor
     interactor.AddObserver("KeyPressEvent", move_object)
 
-    # Posicionar el transductor en la posición inicial
+    # Posicionar el objeto móvil en la posición inicial
     update_position()
 
-    # Configurar la cámara, renderizar y comenzar el interactor
+    # Configurar la cámara y renderizar
     renderer.ResetCamera()
     render_window.Render()
-    interactor.Start()
 
+    # Iniciar el interactor
+    interactor.Start()
     return HttpResponse("")
 
 

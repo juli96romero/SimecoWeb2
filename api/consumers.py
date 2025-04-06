@@ -19,11 +19,14 @@ output_path = "./results/"
 model = main("self")
 model2 = main2("self")
 
-brillo = [0, 0, 0, 0, 0]
+brillo = [0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 
 class Socket_Principal_FrontEnd(WebsocketConsumer):
-    brillo = [0, 0, 0, 0, 0]
+    brillo = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+    new_position= (0,0,0)
+    direction = None
+
     def connect(self):
         self.accept()
 
@@ -57,10 +60,22 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
             self.brillo[2] = int(data.get('brightness2'))
             self.brillo[3] = int(data.get('brightness3'))
             self.brillo[4] = int(data.get('brightness4'))
+            self.brillo[5] = int(data.get('brightness5'))
+            self.brillo[6] = int(data.get('brightness6'))
+            self.brillo[7] = int(data.get('brightness7'))
+            self.brillo[8] = int(data.get('brightness8'))
+            self.direction = data.get('direction')
         except (ValueError, TypeError):
             print("El valor de brillo no es válido. Usando el valor por defecto")
 
-
+        if self.direction:
+        # Mover el transductor según la dirección
+            print(self.new_position)
+            print("mobverreeriorajfñfafarfrñjfa")
+            self.new_position = views.move_transducer(self.direction)
+            print(self.new_position)
+        else:
+            print("no moveeeemento")
         
         imagen_brillo_ajustado = ajustar_brillo_con_franjas(image_data,self.brillo)
         #convierto esa imagen a cartesianas
@@ -76,7 +91,7 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
         
         
 
-        self.send(text_data=json.dumps({"image_data": image_base64}))
+        self.send(text_data=json.dumps({"image_data": image_base64, "position": self.new_position}))
 
 
     def adjust_brightness(self, image_base64, brightness_factor):
@@ -330,8 +345,9 @@ class Brightness(WebsocketConsumer):
         self.send(text_data=json.dumps({"image_data": image_base64}))
 
 
-def ajustar_brillo_con_franjas(imagen,brillo):
-    print("brillo:",brillo)
+def ajustar_brillo_con_franjas(imagen, brillo):
+    print("brillo:", brillo)
+    
     # Convertir la imagen a tipo int16 para evitar desbordamiento en las operaciones
     imagen_float = imagen.astype(np.int16)
 
@@ -340,13 +356,13 @@ def ajustar_brillo_con_franjas(imagen,brillo):
 
     # Calcular el número de filas y determinar las franjas
     filas, columnas = imagen.shape[:2]
-    franja_altura = filas // 4
+    franja_altura = filas // 8  # Ahora tenemos 8 franjas
 
     # Aplicar ajustes de brillo específicos por franja
-    imagen_ajustada[:franja_altura, :] += brillo[1]  # Primera franja
-    imagen_ajustada[franja_altura:2*franja_altura, :] += brillo[2]  # Segunda franja
-    imagen_ajustada[2*franja_altura:3*franja_altura, :] += brillo[3]  # Tercera franja
-    imagen_ajustada[3*franja_altura:, :] += brillo[4]  # Cuarta franja
+    for i in range(8):
+        inicio = i * franja_altura
+        fin = (i + 1) * franja_altura if i < 7 else filas  # La última franja llega hasta el final
+        imagen_ajustada[inicio:fin, :] += brillo[i + 1]  # brillo[1] a brillo[8]
 
     # Clip para mantener los valores dentro del rango [0, 255]
     imagen_ajustada = np.clip(imagen_ajustada, 0, 255).astype(np.uint8)
