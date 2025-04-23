@@ -39,16 +39,15 @@ Pasos para levantar el proyecto desde el ambiente Conda:
    pip install polarTransform 
    pip install vtk
 
-4.5. ((Opcional)) **Instalar dependencias extras en caso de que algo falle:**
-
-   ```sh
-   pip install -r requirements.txt
-
-
-6. **Correr el servidor:**
+5. **Correr el servidor:**
 
    ```sh
    python manage.py runserver
+
+6. **((Opcional)) Instalar dependencias extras en caso de que algo falle:**
+
+   ```sh
+   pip install -r requirements.txt
 
 7. **Acceder via ip (indicada en la terminal):**
 
