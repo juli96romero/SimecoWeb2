@@ -267,7 +267,7 @@ class UNetGenerator(nn.Module):
         """
         Paper details:
         - Encoder: C64-C128-C256-C512-C512-C512-C512-C512
-        - All convolutions are 4×4 spatial filters applied with stride 2
+        - All convolutions are 44 spatial filters applied with stride 2
         - Convolutions in the encoder downsample by a factor of 2
         - Decoder: CD512-CD1024-CD1024-C1024-C1024-C512 -C256-C128
         """
@@ -356,7 +356,7 @@ class Unet_SkipConnectionBlock(nn.Module):
             submodule -- submodulo previo
             outermost (bool)    -- Si es el modulo de afuera (ultimo)
             innermost (bool)    -- si es el modulo de adentro (primero)
-            norm_layer          -- capa de normalización
+            norm_layer          -- capa de normalizacin
             use_dropout (bool)  -- Si usamos dropout
         """
         super(Unet_SkipConnectionBlock, self).__init__()
@@ -411,7 +411,7 @@ class UnetGenerator_v2(nn.Module):
         super(UnetGenerator_v2, self).__init__()
         # Primero se construye cuello de botella. 
         unet_block = Unet_SkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=None, norm_layer=norm_layer, innermost=True)
-        # Las capas mas profundas dependiendo el tamaño de la imagen
+        # Las capas mas profundas dependiendo el tamao de la imagen
         for i in range(num_downs - 5):
             unet_block = Unet_SkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer, use_dropout=use_dropout)
         # las primeras capas que aumentan el num de filtros.
@@ -606,7 +606,7 @@ class Pix2Pix(pl.LightningModule):
         for filename in filenames:
             label = load_image(path.join(input_path, filename))
             mask = reformat_label(label)
-            # TODO: Ver porque poronga tengo que hacer la transformación de una imagen (label-RGB) si o si y no puedo mandar solo la mask
+            # TODO: Ver porque poronga tengo que hacer la transformacin de una imagen (label-RGB) si o si y no puedo mandar solo la mask
             transformed = test_transform(image=label, mask=mask)
             mask = transformed['mask'] #input
             mask = torch.unsqueeze(torch.unsqueeze(mask.float(),0),0)# convierto los labels a float y el canal de profundida = 1 

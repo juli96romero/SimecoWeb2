@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import VTKViewer from "./VTKViewer";
 import ImageDisplay from "./ImageDisplay";
 import ControlButtons from "./ControlButtons";
@@ -10,6 +10,8 @@ const TryVTK = () => {
   const [yValue, setYValue] = useState(0.3);
   const [zValue, setZValue] = useState(0.99);
   const [imageData, setImageData] = useState(null);
+  const [imageData2, setImageData2] = useState(null); // Nueva imagen
+  const [showImage2, setShowImage2] = useState(false); // Estado para mostrar/ocultar imagen 2
   const [brightnessGeneral, setBrightnessGeneral] = useState(0);
   const [brightness1, setBrightness1] = useState(0);
   const [brightness2, setBrightness2] = useState(0);
@@ -45,8 +47,96 @@ const TryVTK = () => {
   const [arrowLeftCount, setArrowLeftCount] = useState(0);
   const [arrowRightCount, setArrowRightCount] = useState(0);
 
+  const resetValues = () => {
+    setBrightnessGeneral(0);
+    setBrightness1(0);
+    setBrightness2(0);
+    setBrightness3(0);
+    setBrightness4(0);
+    setBrightness5(0);
+    setBrightness6(0);
+    setBrightness7(0);
+    setBrightness8(0);
+    setArrowUpCount(0);
+    setArrowDownCount(0);
+    setArrowLeftCount(0);
+    setArrowRightCount(0);
+    setShowImage2(false); // Resetear también el estado de la imagen 2
+    setImageData2(null); // Limpiar la imagen 2
+  };
+
+  useEffect(() => {
+    chatSocket.current = new WebSocket(
+      `ws://${window.location.host}/ws/socket-principal-front/`
+    );
+
+    chatSocket.current.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+      console.log('posicion recibida en tryvtk', data.position);
+      console.log('image_data recibida en tryvtk', data.image_data_2);
+      if (data.position) {
+        // Asegúrate de que data.position es un array de 3 números
+        if (Array.isArray(data.position)) {
+          setSpecialActorPosition(data.position);
+        } else {
+          console.error("Posición recibida no es un array válido:", data.position);
+        }
+      }
+      
+      if (data.image_data) {
+        setImageData(`data:image/png;base64,${data.image_data}`);
+        if (buttonState.current) sendMessage();
+      } else {
+        console.error("Received empty or undefined image_data");
+      }
+
+      // Recibir la segunda imagen si está disponible
+      if (data.image_data_2) {
+        setImageData2(`data:image/png;base64,${data.image_data_2}`);
+      }
+    };
+
+    return () => {
+      if (chatSocket.current) chatSocket.current.close();
+    };
+  }, []);
+
+  // Función para enviar mensajes
+  const sendMessage = useCallback((direction = null) => {
+    if (!chatSocket.current || chatSocket.current.readyState !== WebSocket.OPEN) {
+      console.error("WebSocket no está conectado");
+      return;
+    }
+    
+    console.log("Enviando mensaje a través del WebSocket");
+    chatSocket.current.send(
+      JSON.stringify({
+        message: "message",
+        x: xValue + 0.01 * (Math.random() * 2 - 1),
+        y: yValue + 0.01 * (Math.random() * 2 - 1),
+        z: zValue + 0.01 * (Math.random() * 2 - 1),
+        brightness: brightnessRefs.current[0],
+        brightness1: brightnessRefs.current[1],
+        brightness2: brightnessRefs.current[2],
+        brightness3: brightnessRefs.current[3],
+        brightness4: brightnessRefs.current[4],
+        brightness5: brightnessRefs.current[5],
+        brightness6: brightnessRefs.current[6],
+        brightness7: brightnessRefs.current[7],
+        brightness8: brightnessRefs.current[8],
+        arrowUp: arrowUpCount,
+        arrowDown: arrowDownCount,
+        arrowLeft: arrowLeftCount,
+        arrowRight: arrowRightCount,
+        specialActorPosition: specialActorPosition,
+        direction: direction,
+        show_image_2: showImage2, // Enviar el estado de visualización de imagen 2
+      })
+    );
+  }, [xValue, yValue, zValue, arrowUpCount, arrowDownCount, arrowLeftCount, arrowRightCount, specialActorPosition, showImage2]);
+
   // Función para manejar clics en las flechas
-  const handleArrowClick = (direction) => {
+  const handleArrowClick = useCallback((direction) => {
     switch (direction) {
       case "up":
         setArrowUpCount((prev) => prev + 1);
@@ -66,91 +156,85 @@ const TryVTK = () => {
 
     // Enviar la dirección de movimiento a través del WebSocket
     sendMessage(direction);
-  };
+  }, [sendMessage]);
 
-  const resetValues = () => {
-    setBrightnessGeneral(0);
-    setBrightness1(0);
-    setBrightness2(0);
-    setBrightness3(0);
-    setBrightness4(0);
-    setBrightness5(0);
-    setBrightness6(0);
-    setBrightness7(0);
-    setBrightness8(0);
-    setArrowUpCount(0);
-    setArrowDownCount(0);
-    setArrowLeftCount(0);
-    setArrowRightCount(0);
-  };
+  // Manejador de eventos de teclado
+  const handleKeyDown = useCallback((event) => {
+    // Verificar si la tecla presionada es una de las flechas
+    switch (event.key) {
+      case "ArrowUp":
+        event.preventDefault(); // Prevenir comportamiento por defecto
+        handleArrowClick("up");
+        break;
+      case "ArrowDown":
+        event.preventDefault();
+        handleArrowClick("down");
+        break;
+      case "ArrowLeft":
+        event.preventDefault();
+        handleArrowClick("left");
+        break;
+      case "ArrowRight":
+        event.preventDefault();
+        handleArrowClick("right");
+        break;
+      default:
+        break;
+    }
+  }, [handleArrowClick]);
 
+  // Agregar event listener para teclas
   useEffect(() => {
-    chatSocket.current = new WebSocket(
-      `ws://${window.location.host}/ws/socket-principal-front/`
-    );
-
-    chatSocket.current.onmessage = (e) => {
-      const data = JSON.parse(e.data);
-      console.log(data.position);
-      if (data.image_data) {
-        setImageData(`data:image/png;base64,${data.image_data}`);
-        if (buttonState.current) sendMessage();
-      } else {
-        console.error("Received empty or undefined image_data");
-      }
-    };
-
+    window.addEventListener("keydown", handleKeyDown);
+    
+    // Limpiar el event listener al desmontar el componente
     return () => {
-      if (chatSocket.current) chatSocket.current.close();
+      window.removeEventListener("keydown", handleKeyDown);
     };
-  }, []);
-
-  const sendMessage = (direction = null) => {
-    chatSocket.current.send(
-      JSON.stringify({
-        message: "message",
-        x: xValue + 0.01 * (Math.random() * 2 - 1),
-        y: yValue + 0.01 * (Math.random() * 2 - 1),
-        z: zValue + 0.01 * (Math.random() * 2 - 1),
-        brightness: brightnessRefs.current[0],
-        brightness1: brightnessRefs.current[1],
-        brightness2: brightnessRefs.current[2],
-        brightness3: brightnessRefs.current[3],
-        brightness4: brightnessRefs.current[4],
-        brightness5: brightnessRefs.current[5],
-        brightness6: brightnessRefs.current[6],
-        brightness7: brightnessRefs.current[7],
-        brightness8: brightnessRefs.current[8],
-        arrowUp: arrowUpCount, // Usar el estado directamente
-        arrowDown: arrowDownCount, // Usar el estado directamente
-        arrowLeft: arrowLeftCount, // Usar el estado directamente
-        arrowRight: arrowRightCount, // Usar el estado directamente
-        specialActorPosition: specialActorPosition, // Enviar la posición del actor especial
-        direction: direction, // Enviar la dirección de movimiento
-      })
-    );
-  };
+  }, [handleKeyDown]);
 
   const buttonPressed = () => {
     buttonState.current = !buttonState.current;
     sendMessage();
   };
 
+  // Función para alternar la visualización de la segunda imagen
+  const toggleImage2 = () => {
+    setShowImage2(prev => !prev);
+    // No es necesario enviar mensaje inmediatamente, se enviará en el próximo ciclo
+  };
+
   return (
     <div className="app-container">
       <div className="half-screen half-screen-left">
         <ImageDisplay imageData={imageData} />
+        {/* Mostrar la segunda imagen si está activada */}
+        {showImage2 && imageData2 && (
+          <div className="image2-container">
+            <h3>Imagen 2</h3>
+            <ImageDisplay imageData={imageData2} />
+          </div>
+        )}
       </div>
       <div className="half-screen half-screen-right">
         <div ref={vtkContainerRef} className="vtk-container" />
         <VTKViewer
           containerRef={vtkContainerRef}
-          onSpecialActorPositionChange={setSpecialActorPosition} // Pasar la función
-          specialActorPosition={specialActorPosition} // Pasar la posición actualizada
+          onSpecialActorPositionChange={setSpecialActorPosition}
+          specialActorPosition={specialActorPosition}
         />
         <div id="controls">
           <ControlButtons onGenerate={buttonPressed} onReset={resetValues} />
           <ArrowButtons onArrowClick={handleArrowClick} />
+          {/* Botón para activar/desactivar la segunda imagen */}
+          <div className="toggle-button-container">
+            <button 
+              className={`toggle-button ${showImage2 ? 'active' : ''}`}
+              onClick={toggleImage2}
+            >
+              {showImage2 ? 'Ocultar Imagen 2' : 'Mostrar Imagen 2'}
+            </button>
+          </div>
           <div className="slider-container">
             <BrightnessSlider
               label="Brillo General"

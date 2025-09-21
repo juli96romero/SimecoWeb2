@@ -7,6 +7,7 @@ const App = () => {
   return (
     <div className="app-container">
       <TryVTK/>
+      {console.log("Renderizando App.js")}
     </div>
   );
 };
