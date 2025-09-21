@@ -1,0 +1,15 @@
+pip install django
+pip install daphne
+pip install channels
+pip install numpy
+pip install Pillow
+pip install matplotlib
+pip install opencv-python
+pip install tensorboard
+pip install pytorch-lightning
+pip install torchvision
+pip install albumentations
+pip install polarTransform
+pip install vtk
+
+

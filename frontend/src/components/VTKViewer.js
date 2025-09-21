@@ -27,19 +27,25 @@ const VTKViewer = ({ containerRef, onSpecialActorPositionChange, specialActorPos
     }
   }, [onSpecialActorPositionChange, getSpecialActorPosition]);
 
-  // Efecto para actualizar la posición del actor especial
   useEffect(() => {
     if (specialActorRef.current && specialActorPosition) {
-      console.log("Nueva posición recibida en useEffect:", specialActorPosition); // Debug
-      specialActorRef.current.setPosition(...specialActorPosition);
-      console.log("Posición del actor especial actualizada:", specialActorRef.current.getPosition()); // Debug
-
-      if (context.current && context.current.renderWindow) {
-        context.current.renderWindow.render(); // Renderizar la escena
-        console.log("Escena rerenderizada"); // Debug
+      console.log("Nueva posición recibida en useEffect:", specialActorPosition);
+      
+      // Verificar que la posición es válida
+      if (Array.isArray(specialActorPosition)) {
+        specialActorRef.current.setPosition(...specialActorPosition);
+        console.log("Posición del actor especial actualizada:", 
+          specialActorRef.current.getPosition());
+        
+        if (context.current?.renderWindow) {
+          context.current.renderWindow.render();
+          console.log("Escena rerenderizada");
+        }
+      } else {
+        console.error("Posición no válida:", specialActorPosition);
       }
     }
-  }, [specialActorPosition]); // Dependencia de specialActorPosition
+  }, [specialActorPosition]);
 
   useEffect(() => {
     const fetchStlFiles = async () => {

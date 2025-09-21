@@ -17,19 +17,19 @@ import numpy as np
 from PIL import Image
 import math
 from math import cos, sin, pi
+from django.views.decorators.csrf import csrf_exempt
 
-mallas = []
 mallas_colors = []
 transductor = []
 
 # Variables globales para el estado del transductor
-theta = 0  # Ángulo en el plano XY (en radianes)
-phi = 0    # Ángulo en el plano XZ (en radianes)
-psi = 0    # Ángulo en el plano YZ (en radianes)
-delta_angle = 0.02  # Incremento del ángulo por cada evento de teclado
-delta_angle_psi = 0.05  # Incremento del ángulo psi
+theta = 0  # ngulo en el plano XY (en radianes)
+phi = 0    # ngulo en el plano XZ (en radianes)
+psi = 0    # ngulo en el plano YZ (en radianes)
+delta_angle = 0.02  # Incremento del ngulo por cada evento de teclado
+delta_angle_psi = 0.05  # Incremento del ngulo psi
 
-# Radios del elipsoide (ajustados según la malla de la piel)
+# Radios del elipsoide (ajustados segn la malla de la piel)
 x_radius = 10.0
 y_radius = 15.0
 z_radius = 8.0
@@ -39,6 +39,148 @@ center_x = 0.0
 center_y = 0.0
 center_z = 0.0
 
+mallas = []
+transductor_polydata = None
+ultima_posicion = [0, 0, 0]
+ultima_rotacion = [0, 0, 0]
+
+def levantar_stl():
+    global mallas, transductor_polydata
+
+    if mallas and transductor_polydata:
+        return  # Ya cargado
+
+    folder_path = "api/stl-files"
+    archivos = [f for f in os.listdir(folder_path) if f.endswith('.stl')]
+
+    for archivo in archivos:
+        reader = vtk.vtkSTLReader()
+        reader.SetFileName(os.path.join(folder_path, archivo))
+        reader.Update()
+        polydata = reader.GetOutput()
+
+        name = os.path.splitext(archivo)[0].lower()
+        if "transductor" in name:
+            transductor_polydata = polydata
+        else:
+            color = (1, 1, 1)
+            for palabra, c in mesh_colors.items():
+                if palabra in name:
+                    color = c
+                    break
+            mallas.append((polydata, color))
+
+def mostrar_ventana_vtk():
+    global ultima_posicion, ultima_rotacion
+
+    renderer = vtk.vtkRenderer()
+
+    for polydata, color in mallas:
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputData(polydata)
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetColor(*color)
+        actor.GetProperty().SetOpacity(0.2)
+        renderer.AddActor(actor)
+
+    if transductor_polydata:
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputData(transductor_polydata)
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetColor(1, 0, 0)
+        actor.GetProperty().SetOpacity(0.6)
+
+        transform = vtk.vtkTransform()
+        transform.PostMultiply()
+        transform.RotateX(ultima_rotacion[0])
+        transform.RotateY(ultima_rotacion[1])
+        transform.RotateZ(ultima_rotacion[2])
+        transform.Translate(ultima_posicion)
+        actor.SetUserTransform(transform)
+
+        renderer.AddActor(actor)
+
+    render_window = vtk.vtkRenderWindow()
+    render_window.AddRenderer(renderer)
+    render_window.SetWindowName("Transductor")
+    render_window.SetSize(1000, 800)
+    renderer.SetBackground(1, 1, 1)
+
+    interactor = vtk.vtkRenderWindowInteractor()
+    interactor.SetRenderWindow(render_window)
+
+    render_window.Render()
+    interactor.Initialize()
+    interactor.Start()
+
+@csrf_exempt
+def mover_transductor(request):
+    global ultima_posicion, ultima_rotacion
+
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            ultima_posicion = data.get("position", [0, 0, 0])
+            ultima_rotacion = data.get("rotation", [0, 0, 0])
+            mostrar_ventana_vtk()
+            return JsonResponse({"success": True})
+        except Exception as e:
+            return JsonResponse({"success": False, "error": str(e)})
+    return JsonResponse({"success": False, "error": "Mtodo invlido"})
+
+def interfaz_html(request):
+    levantar_stl()
+    return HttpResponse(f"""
+        <html>
+        <head>
+            <title>Control del Transductor</title>
+        </head>
+        <body style="font-family:sans-serif; text-align:center; padding:50px;">
+            <h1>Control del Transductor</h1>
+            <label>Posicin (x, y, z):</label><br>
+            <input id="posX" type="number" value="0"> 
+            <input id="posY" type="number" value="0"> 
+            <input id="posZ" type="number" value="0"><br><br>
+
+            <label>Rotacin (x, y, z):</label><br>
+            <input id="rotX" type="number" value="0"> 
+            <input id="rotY" type="number" value="0"> 
+            <input id="rotZ" type="number" value="0"><br><br>
+
+            <button onclick="enviar()">Actualizar vista VTK</button>
+
+            <script>
+                function enviar() {{
+                    const pos = [
+                        parseFloat(document.getElementById("posX").value),
+                        parseFloat(document.getElementById("posY").value),
+                        parseFloat(document.getElementById("posZ").value)
+                    ];
+                    const rot = [
+                        parseFloat(document.getElementById("rotX").value),
+                        parseFloat(document.getElementById("rotY").value),
+                        parseFloat(document.getElementById("rotZ").value)
+                    ];
+                    fetch("/mover-transductor/", {{
+                        method: "POST",
+                        headers: {{
+                            "Content-Type": "application/json"
+                        }},
+                        body: JSON.stringify({{ position: pos, rotation: rot }})
+                    }}).then(resp => resp.json()).then(data => {{
+                        if (data.success) {{
+                            alert("Ventana actualizada!");
+                        }} else {{
+                            alert("Error: " + data.error);
+                        }}
+                    }});
+                }}
+            </script>
+        </body>
+        </html>
+    """)
 
 mesh_colors = {
     'pelvis': (151/255.0, 151/255.0, 147/255.0),
@@ -73,7 +215,7 @@ def extract_patterns(urlpatterns, base=''):
 
 def main_page(request):
     resolver = get_resolver()
-    # Encuentra el resolver que corresponde a la aplicación "api"
+    # Encuentra el resolver que corresponde a la aplicacin "api"
     api_resolver = None
     for pattern in resolver.url_patterns:
         if isinstance(pattern, URLResolver) and pattern.pattern._route == '':
@@ -132,10 +274,13 @@ def convert_vtk_polydata_to_json(polydata):
     return data
 
 def move_transducer(action):
-    global theta, phi, psi
-
-
-    # Actualizar los ángulos según la acción
+    global theta, phi, psi, delta_angle, delta_angle_psi
+    global center_x, center_y, center_z
+    global x_radius, y_radius, z_radius
+    print("valor actual variables globales:", 
+          f"theta={theta}, phi={phi}, psi={psi}, "
+          f"x_radius={x_radius}, y_radius={y_radius}, z_radius={z_radius}")
+    # Actualizar los ngulos segn la accin
     if action == 'left':
         theta -= delta_angle
     elif action == 'right':
@@ -149,17 +294,18 @@ def move_transducer(action):
     elif action == 'd':
         psi += delta_angle_psi
 
-    # Asegurarse de que los ángulos estén en el rango [0, 2*pi]
+    # Asegurarse de que los ngulos estn en el rango [0, 2*pi]
     theta = theta % (2 * pi)
     phi = phi % (2 * pi)
     psi = psi % (2 * pi)
 
-    # Calcular la nueva posición en la superficie del elipsoide
+    # Calcular la nueva posicin en la superficie del elipsoide
+    # (using exactly the same formula as in the first function)
     x = center_x + x_radius * cos(theta) * cos(phi)
     y = center_y + y_radius * sin(theta) * cos(psi)
     z = center_z + z_radius * sin(phi) * cos(psi)
 
-
+    print(f"Posicin del transductor: x={x:.6f}, y={y:.6f}, z={z:.6f}")
     return (x, y, z)
 
 
@@ -180,7 +326,7 @@ def levantarMallas():
         else:
             mallas.append(reader.GetOutput())
 
-        # Asignar color según el nombre del archivo
+        # Asignar color segn el nombre del archivo
         name = os.path.splitext(stl_file)[0].lower()
         assigned_color = (1.0, 1.0, 1.0)  # Color por defecto (blanco)
         for keyword, color in mesh_colors.items():
@@ -237,7 +383,7 @@ def vtk_visualization(request, normal=normal_global):
     # Create a VTK renderer
     renderer = vtk.vtkRenderer()
     
-    # Asegúrate de que las mallas estén disponibles
+    # Asegrate de que las mallas estn disponibles
     if not mallas:
         levantarMallas()
 
@@ -245,7 +391,7 @@ def vtk_visualization(request, normal=normal_global):
     for malla in mallas:        
         filled_slice = slice_and_fill_mesh_vtk(
             malla, 
-            origin=[0, 0, -0.02], 
+            origin=[0, 0, -1.25], 
             normal=normal
         )
         mesh_mapper = vtk.vtkPolyDataMapper()
@@ -271,14 +417,20 @@ def vtk_visualization(request, normal=normal_global):
     transductor_actor.SetMapper(transductor_mapper)
     transductor_actor.GetProperty().SetOpacity(0.4)
     transductor_actor.GetProperty().SetColor(1, 0.0, 0.0)
-    
-    # Definir la posición inicial del transductor
-    transductor_position = (.5, .5, .5)  # Posición de ejemplo
-    transductor_actor.SetPosition(*transductor_position)
+    transform = vtk.vtkTransform()
+    transform.PostMultiply()
+    transform.RotateX(-90)
+    transform.RotateY(0)
+    transform.RotateZ(0)
+    transform.Translate(0, 0, -1.25)
+
+    # Aplicar transform
+    transductor_actor.SetUserTransform(transform)
+
     renderer.AddActor(transductor_actor)
     
 
-    # Configuración de la ventana de renderizado
+    # Configuracin de la ventana de renderizado
     renderer.SetBackground(1, 1, 1)
     render_window = vtk.vtkRenderWindow()
     render_window.AddRenderer(renderer)
@@ -288,14 +440,12 @@ def vtk_visualization(request, normal=normal_global):
     render_window_interactor = vtk.vtkRenderWindowInteractor()
     render_window_interactor.SetRenderWindow(render_window)
 
-    # Renderizar y empezar la interacción
+    # Renderizar y empezar la interaccin
     render_window.Render()
     render_window_interactor.Initialize()
     render_window_interactor.Start()
 
     return True
-
-
 
 ####SLICE AND FILL
 
@@ -507,7 +657,7 @@ def slice_to_image(filled_slices, mesh_colors):
         actor = vtk.vtkActor()
         actor.SetMapper(mapper)
         
-        # Asignar el color según el índice de la malla
+        # Asignar el color segn el ndice de la malla
         color = mesh_colors[i]
         actor.GetProperty().SetColor(color)
         actor.GetProperty().LightingOff()  
@@ -572,6 +722,9 @@ def pruebaFOV(request):
 def vtk_visualizador(request):
     return render(request, 'api/vtk_visualizador.html')
 
+def vtk_mover(request):
+    return render(request, 'api/vtk_visualizador_mover.html')
+
 
 
 def pruebaRecorte(request):
@@ -613,14 +766,14 @@ def generate_subimage_with_fov(request):
     slice_image = vtk_visualization_image(request)
     
     origin = (int(slice_image.shape[1] / 2), int(slice_image.shape[0] / 2))
-    angle = math.radians(30)  # Ajusta el ángulo del FOV aquí
-    height = 100  # Ajusta la altura del FOV aquí
+    angle = math.radians(30)  # Ajusta el ngulo del FOV aqu
+    height = 100  # Ajusta la altura del FOV aqu
     
     mask = generate_cone_mask(slice_image.shape, origin, angle, height)
     subimage = apply_fov_to_image(slice_image, mask)
     
     mask_image = np.zeros_like(slice_image)
-    mask_image[mask] = [255, 255, 255]  # Blanco para la máscara
+    mask_image[mask] = [255, 255, 255]  # Blanco para la mscara
     
     return slice_image, subimage, mask_image
 
@@ -673,7 +826,7 @@ def createpoly_ellipsoid(request):
 
     ellipsoid_source = vtk.vtkParametricFunctionSource()
     ellipsoid_source.SetParametricFunction(ellipsoid)
-    ellipsoid_source.SetUResolution(50)  # Resolución de la malla del elipsoide
+    ellipsoid_source.SetUResolution(50)  # Resolucin de la malla del elipsoide
     ellipsoid_source.SetVResolution(50)
     ellipsoid_source.Update()
 
@@ -685,18 +838,18 @@ def createpoly_ellipsoid(request):
     ellipsoid_actor.GetProperty().SetColor(0.5, 0.5, 1)  # Color azul para el elipsoide
     ellipsoid_actor.GetProperty().SetOpacity(0.5)  # Hacerlo semi-transparente
 
-    # Centrar el elipsoide en la misma posición que la malla de la piel
+    # Centrar el elipsoide en la misma posicin que la malla de la piel
     ellipsoid_actor.SetPosition(
         (bounds[0] + bounds[1]) / 2.0,  # Centro en X
         (bounds[2] + bounds[3]) / 2.0,  # Centro en Y
         (bounds[4] + bounds[5]) / 2.0   # Centro en Z
     )
 
-    # Añadir los actores al renderer
+    # Aadir los actores al renderer
     renderer.AddActor(skin_actor)
     renderer.AddActor(ellipsoid_actor)
 
-    # Configurar la cámara y renderizar
+    # Configurar la cmara y renderizar
     renderer.ResetCamera()
     render_window.Render()
 
@@ -756,7 +909,7 @@ def createpoly_ellipsoid_with_mov(request):
 
     ellipsoid_source = vtk.vtkParametricFunctionSource()
     ellipsoid_source.SetParametricFunction(ellipsoid)
-    ellipsoid_source.SetUResolution(50)  # Resolución de la malla del elipsoide
+    ellipsoid_source.SetUResolution(50)  # Resolucin de la malla del elipsoide
     ellipsoid_source.SetVResolution(50)
     ellipsoid_source.Update()
 
@@ -768,14 +921,14 @@ def createpoly_ellipsoid_with_mov(request):
     ellipsoid_actor.GetProperty().SetColor(0.5, 0.5, 1)  # Color azul para el elipsoide
     ellipsoid_actor.GetProperty().SetOpacity(0.5)  # Hacerlo semi-transparente
 
-    # Centrar el elipsoide en la misma posición que la malla de la piel
+    # Centrar el elipsoide en la misma posicin que la malla de la piel
     center_x = (bounds[0] + bounds[1]) / 2.0
     center_y = (bounds[2] + bounds[3]) / 2.0
     center_z = (bounds[4] + bounds[5]) / 2.0
     ellipsoid_actor.SetPosition(center_x, center_y, center_z)
     renderer.AddActor(ellipsoid_actor)
 
-    # Cargar el archivo .stl adicional que se moverá alrededor del elipsoide
+    # Cargar el archivo .stl adicional que se mover alrededor del elipsoide
     moving_stl_path = "api/stl-files/transductor y fov.stl"
     moving_reader = vtk.vtkSTLReader()
     moving_reader.SetFileName(moving_stl_path)
@@ -786,27 +939,28 @@ def createpoly_ellipsoid_with_mov(request):
 
     moving_actor = vtk.vtkActor()
     moving_actor.SetMapper(moving_mapper)
-    moving_actor.GetProperty().SetColor(0, 1, 0)  # Color verde para el objeto móvil
+    moving_actor.GetProperty().SetColor(0, 1, 0)  # Color verde para el objeto mvil
     renderer.AddActor(moving_actor)
 
     # Variables para controlar el movimiento
-    theta = 0  # Ángulo en el plano XY (en radianes)
-    phi = 0    # Ángulo en el plano XZ (en radianes)
-    psi = 0    # Ángulo en el plano YZ (en radianes)
-    delta_angle = 0.02  # Incremento del ángulo por cada evento de teclado
-    delta_angle_psi = 0.05  # Incremento del ángulo psi
+    theta = 0  # ngulo en el plano XY (en radianes)
+    phi = 0    # ngulo en el plano XZ (en radianes)
+    psi = 0    # ngulo en el plano YZ (en radianes)
+    delta_angle = 0.02  # Incremento del ngulo por cada evento de teclado
+    delta_angle_psi = 0.05  # Incremento del ngulo psi
 
-    # Función para actualizar la posición del objeto móvil
+    # Funcin para actualizar la posicin del objeto mvil
     def update_position():
         nonlocal theta, phi, psi
-        # Calcular la posición en la superficie del elipsoide
+        # Calcular la posicin en la superficie del elipsoide
         x = center_x + x_radius * cos(theta) * cos(phi)
         y = center_y + y_radius * sin(theta) * cos(psi)
         z = center_z + z_radius * sin(phi) * cos(psi)
         moving_actor.SetPosition(x, y, z)
+        print(f"Posicin del objeto mvil: x={x}, y={y}, z={z}")
         render_window.Render()
 
-    # Función para manejar el movimiento del objeto
+    # Funcin para manejar el movimiento del objeto
     def move_object(obj, event):
         nonlocal theta, phi, psi
         key = obj.GetKeySym()
@@ -823,21 +977,21 @@ def createpoly_ellipsoid_with_mov(request):
         elif key == "d":  # Tecla 'D' para mover en el plano YZ (sentido antihorario)
             psi += delta_angle_psi
 
-        # Asegurarse de que los ángulos estén en el rango [0, 2*pi]
+        # Asegurarse de que los ngulos estn en el rango [0, 2*pi]
         theta = theta % (2 * pi)
         phi = phi % (2 * pi)
         psi = psi % (2 * pi)
 
-        # Actualizar la posición del objeto móvil
+        # Actualizar la posicin del objeto mvil
         update_position()
 
-    # Asignar la función de manejo de eventos al interactor
+    # Asignar la funcin de manejo de eventos al interactor
     interactor.AddObserver("KeyPressEvent", move_object)
 
-    # Posicionar el objeto móvil en la posición inicial
+    # Posicionar el objeto mvil en la posicin inicial
     update_position()
 
-    # Configurar la cámara y renderizar
+    # Configurar la cmara y renderizar
     renderer.ResetCamera()
     render_window.Render()
 
@@ -864,7 +1018,7 @@ def createpoly_spline(request):
     # Extraer puntos clave de la malla de la piel
     points = vtk.vtkPoints()
     num_points = skin_poly_data.GetNumberOfPoints()
-    for i in range(0, num_points, 100):  # Seleccionar cada 100 puntos (ajusta según sea necesario)
+    for i in range(0, num_points, 100):  # Seleccionar cada 100 puntos (ajusta segn sea necesario)
         point = skin_poly_data.GetPoint(i)
         points.InsertNextPoint(point)
 
@@ -872,10 +1026,10 @@ def createpoly_spline(request):
     spline = vtk.vtkParametricSpline()
     spline.SetPoints(points)
 
-    # Crear una fuente de función paramétrica para la spline
+    # Crear una fuente de funcin paramtrica para la spline
     spline_source = vtk.vtkParametricFunctionSource()
     spline_source.SetParametricFunction(spline)
-    spline_source.SetUResolution(100)  # Resolución de la spline
+    spline_source.SetUResolution(100)  # Resolucin de la spline
     spline_source.SetVResolution(100)
     spline_source.Update()
 
@@ -902,11 +1056,11 @@ def createpoly_spline(request):
     spline_actor.GetProperty().SetColor(0.5, 0.5, 1)  # Color azul para la spline
     spline_actor.GetProperty().SetOpacity(0.5)  # Hacerlo semi-transparente
 
-    # Añadir los actores al renderer
+    # Aadir los actores al renderer
     renderer.AddActor(skin_actor)
     renderer.AddActor(spline_actor)
 
-    # Configurar la cámara y renderizar
+    # Configurar la cmara y renderizar
     renderer.ResetCamera()
     render_window.Render()
 
@@ -953,7 +1107,7 @@ def vtk_visualization_with_mov(request, normal=normal_global):
     # Crear un renderer de VTK
     renderer = vtk.vtkRenderer()
 
-    # Asegúrate de que las mallas estén disponibles
+    # Asegrate de que las mallas estn disponibles
     if not mallas:
         levantarMallas()
 
@@ -988,20 +1142,20 @@ def vtk_visualization_with_mov(request, normal=normal_global):
     transductor_actor.GetProperty().SetOpacity(0.4)
     transductor_actor.GetProperty().SetColor(1, 0.0, 0.0)
 
-    # Definir la posición inicial del transductor
-    transductor_position = [0.5, 0.5, 0.5]  # Posición de ejemplo
+    # Definir la posicin inicial del transductor
+    transductor_position = [0.5, 0.5, 0.5]  # Posicin de ejemplo
     transductor_actor.SetPosition(*transductor_position)
     renderer.AddActor(transductor_actor)
 
-    # Función para mover el transductor
+    # Funcin para mover el transductor
     def move_transducer(position):
         valid_position, normal = restrict_movement_to_skin(mallas[0], position)  # Usar la primera malla como piel
         transductor_actor.SetPosition(valid_position)
-        # Ajustar la orientación del transductor (opcional)
+        # Ajustar la orientacin del transductor (opcional)
         # transductor_actor.SetOrientation(normal)
         render_window.Render()
 
-    # Función para manejar eventos del teclado
+    # Funcin para manejar eventos del teclado
     def on_key_press(obj, event):
         key = obj.GetKeySym()
         delta = 0.1  # Cantidad de movimiento en cada paso
@@ -1022,7 +1176,7 @@ def vtk_visualization_with_mov(request, normal=normal_global):
         # Restringir el movimiento del transductor
         move_transducer(transductor_position)
 
-    # Configuración de la ventana de renderizado
+    # Configuracin de la ventana de renderizado
     renderer.SetBackground(1, 1, 1)
     render_window = vtk.vtkRenderWindow()
     render_window.AddRenderer(renderer)
@@ -1032,10 +1186,10 @@ def vtk_visualization_with_mov(request, normal=normal_global):
     render_window_interactor = vtk.vtkRenderWindowInteractor()
     render_window_interactor.SetRenderWindow(render_window)
 
-    # Asignar la función de manejo de eventos al interactor
+    # Asignar la funcin de manejo de eventos al interactor
     render_window_interactor.AddObserver("KeyPressEvent", on_key_press)
 
-    # Renderizar y empezar la interacción
+    # Renderizar y empezar la interaccin
     render_window.Render()
     render_window_interactor.Initialize()
     render_window_interactor.Start()
@@ -1048,17 +1202,17 @@ def color(request):
     # Cargar la imagen
     image_path = "C:/Users/Juli/Desktop/pickleada.png"
     img = Image.open(image_path)
-    img = img.convert("RGB")  # Asegurarse de que la imagen esté en modo RGB
+    img = img.convert("RGB")  # Asegurarse de que la imagen est en modo RGB
 
-    # Obtener los píxeles de la imagen
+    # Obtener los pxeles de la imagen
     pixels = img.load()
 
-    # Iterar sobre cada píxel y cambiar el color si no es rojo
+    # Iterar sobre cada pxel y cambiar el color si no es rojo
     for i in range(img.width):
         for j in range(img.height):
             r, g, b = pixels[i, j]
-            if not (r == 255 and g == 0 and b == 0):  # Comprobar si el píxel no es rojo (RGB: (255, 0, 0))
-                pixels[i, j] = (255, 255, 255)  # Cambiar el píxel a blanco (RGB: (255, 255, 255))
+            if not (r == 255 and g == 0 and b == 0):  # Comprobar si el pxel no es rojo (RGB: (255, 0, 0))
+                pixels[i, j] = (255, 255, 255)  # Cambiar el pxel a blanco (RGB: (255, 255, 255))
 
     # Guardar la imagen modificada
     img.save("C:/Users/Juli/Desktop/pickleada.png")

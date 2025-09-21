@@ -91,6 +91,7 @@
     <script>
         let url = `ws://${window.location.host}/ws/socket-principal256/`;
         const chatSocket = new WebSocket(url);
+        let buttonState = false;
 
         chatSocket.onmessage = function(e) {
             let data = JSON.parse(e.data);
@@ -98,6 +99,8 @@
                 document.getElementById("receivedImage").src = 'data:image/png;base64,' + data.image_data;
                 document.getElementById("receivedImage").style.display = "block";
             }
+            if(buttonState)
+                sendMessage();
         };
 
         function sendMessage() {
@@ -109,7 +112,12 @@
             chatSocket.send(JSON.stringify({ brightness: brightnessValues }));
         }
 
-        document.getElementById("sendMessageButton").addEventListener("click", sendMessage);
+        function buttonPressed(){
+            buttonState=!buttonState
+            sendMessage()
+        }
+
+        document.getElementById("sendMessageButton").addEventListener("click", buttonPressed);
 
         document.querySelectorAll('.brightness-slider').forEach(slider => {
             slider.addEventListener('input', sendMessage);

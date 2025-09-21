@@ -1,68 +1,90 @@
-import math
-import cv2
 import numpy as np
-import polarTransform
-import matplotlib.pyplot as plt
+import cv2
 import pickle
-from os import scandir, getcwd
+from polarTransform.imageTransform import ImageTransform
 
-def scale_image(image, width, height):
-    """ Retorna la imagen re-escalada"""
-    scaledImage = cv2.resize(image,(width,height), interpolation=cv2.INTER_AREA) 
-    return scaledImage   
-
-def ls(ruta = getcwd()):
-    """ Levantar los archivos de una carpeta """
-    return [arch.name for arch in scandir(ruta) if arch.is_file()]
-
-input_path = './results/' 
-output_path = './resizedimages/'
-#pickle_path =  '../resizedimages/mask_simeco.pickle'
-pickle_path =  'api/mask_v1.pickle'  
-# Load a .pkl file
-pickle_file = open(pickle_path,'rb')
-ptSettings = pickle.load(pickle_file)
-pickle_file.close()
-
-def pickel_images(self):
-    lista_img = ls(input_path)
-
-    for image_file in lista_img:
-        
-        
-        # Open image
-        img = cv2.imread(input_path + image_file)
-        width = img.shape[1]
-        height = img.shape[0]
-        # 1ero tengo que restaurar la imagen original para coincidir con las propiedades de las coordenadas polares guardadas en el archivo pickle
-        m2 = cv2.getRotationMatrix2D(((height-1)/2.0,(width-1)/2.0),90,1)
-        rotatedImage = cv2.warpAffine(img,m2,(height,width))
-        scaledImage = scale_image(rotatedImage, 612, 203)  
-        superior = np.zeros((333,612,3), dtype=scaledImage.dtype)
-        inferior = np.zeros((103,612,3), dtype=scaledImage.dtype)
-        conc_1 = cv2.vconcat([superior,scaledImage])
-        conc_2 = cv2.vconcat([conc_1,inferior])
-        print(conc_2.shape)
-        # Conc_2 deberias tener una dimension de (639, 612, 3)
-        reconstructedImage = ptSettings.convertToCartesianImage(conc_2)
-        # Guardamos la imagen   
-        cv2.imwrite(output_path +"rec_" + image_file,reconstructedImage)
-
-def acomodarFOV(img):
-    width = img.shape[1]
-    height = img.shape[0]
-    # 1ero tengo que restaurar la imagen original para coincidir con las propiedades de las coordenadas polares guardadas en el archivo pickle
-    m2 = cv2.getRotationMatrix2D(((height-1)/2.0,(width-1)/2.0),90,1)
-    rotatedImage = cv2.warpAffine(img,m2,(height,width))
-    scaledImage = scale_image(rotatedImage, 612, 203)  
-    superior = np.zeros((333,612,3), dtype=scaledImage.dtype)
-    inferior = np.zeros((103,612,3), dtype=scaledImage.dtype)
-    conc_1 = cv2.vconcat([superior,scaledImage])
-    conc_2 = cv2.vconcat([conc_1,inferior])
+class FOVOptimizer:
+    def __init__(self):
+        self.rotation_matrix = None
+        self.superior_mask = None
+        self.inferior_mask = None
+        self.cartesian_map_x = None
+        self.cartesian_map_y = None
+        self._precomputed = False
     
-    # Conc_2 deberias tener una dimension de (639, 612, 3)
-    reconstructedImage = ptSettings.convertToCartesianImage(conc_2)
-    # Guardamos la imagen   
-    
+    def precompute_for_128x128(self, pickle_path='api/mask_v1.pickle'):
+        """Pre-computa TODO el pipeline para imgenes 128x128"""
+        print("Pre-computando pipeline completo para 128x128...")
+        
+        # Cargar la configuracin existente del pickle
+        with open(pickle_path, 'rb') as f:
+            existing_pt = pickle.load(f)
+        
+        # 1. Pre-computar rotacin para 128x128
+        height, width = 128, 128
+        center = ((height-1)/2.0, (width-1)/2.0)
+        self.rotation_matrix = cv2.getRotationMatrix2D(center, 90, 1)
+        
+        # 2. Mscaras (igual que antes)
+        self.superior_mask = np.zeros((333, 612, 3), dtype=np.uint8)
+        self.inferior_mask = np.zeros((103, 612, 3), dtype=np.uint8)
+        
+        # 3. Pre-computar el mapeo cartesiano para polarTransform 2.0.0
+        # Crear los puntos de la imagen cartesiana de destino
+        cartesian_height, cartesian_width = existing_pt.cartesianImageSize
+        y_cart, x_cart = np.indices((cartesian_height, cartesian_width))
+        
+        # Crear array de puntos [x, y] para la transformacin
+        points = np.stack([x_cart, y_cart], axis=-1).reshape(-1, 2)
+        
+        # Usar el objeto existente para calcular los puntos polares
+        polar_points = existing_pt.getPolarPointsImage(points)
+        
+        # Reformatear a la forma original
+        polar_points = polar_points.reshape(cartesian_height, cartesian_width, 2)
+        
+        # Separar en mapas x e y para cv2.remap
+        self.cartesian_map_x = polar_points[:, :, 0].astype(np.float32)
+        self.cartesian_map_y = polar_points[:, :, 1].astype(np.float32)
+        
+        self._precomputed = True
+        print("Pipeline completo pre-computado ")
+        print(f"Tamao del mapeo cartesiano: {self.cartesian_map_x.shape}")
+        print(f"Rango mapa X: {self.cartesian_map_x.min():.1f} to {self.cartesian_map_x.max():.1f}")
+        print(f"Rango mapa Y: {self.cartesian_map_y.min():.1f} to {self.cartesian_map_y.max():.1f}")
 
+# Instancia global - precomputar AL INICIAR la aplicacin
+fov_optimizer = FOVOptimizer()
+
+# IMPORTANTE: Llama esta funcin UNA SOLA VEZ al iniciar tu aplicacin
+fov_optimizer.precompute_for_128x128()
+
+def acomodarFOV_ultra_rapido(img):
+    """
+    Versin ultra optimizada que usa TODO precomputado
+    Entrada: imagen 128x128x3
+    Salida: imagen transformada
+    """
+    # Verificar que est precomputado
+    if not fov_optimizer._precomputed:
+        raise RuntimeError("FOVOptimizer no ha sido precomputado. Llama precompute_for_128x128() primero.")
+    
+    # 1. Rotacin (precomputada)
+    rotatedImage = cv2.warpAffine(img, fov_optimizer.rotation_matrix, (128, 128))
+    
+    # 2. Scaling 
+    scaledImage = cv2.resize(rotatedImage, (612, 203), interpolation=cv2.INTER_AREA)
+    
+    # 3. Concatenacin (precomputada)
+    conc_1 = cv2.vconcat([fov_optimizer.superior_mask, scaledImage])
+    conc_2 = cv2.vconcat([conc_1, fov_optimizer.inferior_mask])
+    
+    # 4. Transformacin cartesiana (ULTRA RPIDA - precomputada)
+    reconstructedImage = cv2.remap(conc_2, 
+                                 fov_optimizer.cartesian_map_x, 
+                                 fov_optimizer.cartesian_map_y,
+                                 interpolation=cv2.INTER_LINEAR,
+                                 borderMode=cv2.BORDER_CONSTANT,
+                                 borderValue=(0, 0, 0))
+    
     return reconstructedImage
