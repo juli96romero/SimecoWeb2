@@ -82,6 +82,7 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
             # Parseo del mensaje
             parse_start = time.time()
             data = json.loads(text_data)
+            print("Received data:", data.get('action'))  # Log the first 100 characters of the received data
             parse_time = time.time() - parse_start
             logging.info(f"Parse time: {parse_time*1000:.2f}ms")
 
@@ -100,17 +101,28 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
             # Movimiento del transductor
             move_time = 0
             nueva_posicion = mov.get_current_position()
-            if self.direction:
+            nueva_rotacion = mov.get_current_orientation()
+            
+            if self.direction == "reset":
+                reset_start = time.time()
+                nueva_posicion = mov.reset_position()
+                move_time = time.time() - reset_start
+                logging.info(f"Reset time: {move_time*1000:.2f}ms")
+            elif self.direction:
                 move_start = time.time()
-                nueva_posicion = mov.move_transducer(self.direction)
+                if data["action"] == "move":
+                    nueva_posicion = mov.move_transducer(self.direction)
+                elif data["action"] == "rotate":
+                    nueva_rotacion = mov.rotate_transducer(self.direction)
                 move_time = time.time() - move_start
                 logging.info(f"Move time: {move_time*1000:.2f}ms")
-
+            print("sales del elseif")
             # Procesamiento VTK (potencialmente lento)
             vtk_time = 0
             if not self.direction:  # Solo procesar VTK si no hay movimiento
                 vtk_start = time.time()
-                imagen_recorte_vtk = views.vtk_visualization_image(text_data)
+                imagen_recorte_vtk, pos, rot = views.vtk_visualization_image(text_data,mov)
+                print("pos y rot desde views:", pos, rot)
                 vtk_time = time.time() - vtk_start
                 logging.info(f"VTK processing time: {vtk_time*1000:.2f}ms")
             else:
@@ -168,7 +180,8 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
                 "image_data_2": bitstream_optimizer.formatAsBitStream_optimized(imagen_recorte_vtk),
                 "position": nueva_posicion,
                 "processing_time": total_time,
-                "direction": self.direction
+                "direction": self.direction,
+                "rotation": nueva_rotacion
             }
             
             self.send(text_data=json.dumps(response_data))

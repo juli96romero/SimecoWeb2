@@ -70,6 +70,37 @@ def levantar_stl():
                     break
             mallas.append((polydata, color))
 
+def solo_la_piel(request):
+
+    folder_path = "api/stl_para usar"
+    archivos = [f for f in os.listdir(folder_path) if f.endswith('skin.stl')]
+
+    for archivo in archivos:
+        reader = vtk.vtkSTLReader()
+        reader.SetFileName(os.path.join(folder_path, archivo))
+        reader.Update()
+        polydata = reader.GetOutput()
+    mapper = vtk.vtkPolyDataMapper()
+    mapper.SetInputData(polydata)
+    actor = vtk.vtkActor()
+    actor.SetMapper(mapper)
+    actor.GetProperty().SetOpacity(1)
+    renderer.AddActor(actor)
+    render_window = vtk.vtkRenderWindow()
+    render_window.AddRenderer(renderer)
+    render_window.SetWindowName("Transductor")
+    render_window.SetSize(1000, 800)
+    renderer.SetBackground(1, 1, 1)
+
+    interactor = vtk.vtkRenderWindowInteractor()
+    interactor.SetRenderWindow(render_window)
+
+    render_window.Render()
+    interactor.Initialize()
+    interactor.Start()
+    
+    return HttpResponse(f"")
+
 def mostrar_ventana_vtk():
     global ultima_posicion, ultima_rotacion
 
@@ -386,12 +417,12 @@ def vtk_visualization(request, normal=normal_global):
     # Asegrate de que las mallas estn disponibles
     if not mallas:
         levantarMallas()
-
+    print("normal en vtk_visualization:", normal)
     # Agregar las mallas existentes
     for malla in mallas:        
         filled_slice = slice_and_fill_mesh_vtk(
             malla, 
-            origin=[0, 0, -1.25], 
+            origin=[0, 0, 0], 
             normal=normal
         )
         mesh_mapper = vtk.vtkPolyDataMapper()
@@ -682,29 +713,76 @@ def slice_to_image(filled_slices, mesh_colors):
     return arr
 
 
+def rotation_to_normal(pitch_deg, yaw_deg, roll_deg):
+    """Convierte los ángulos de Euler (grados) en un vector normal 3D"""
+    pitch = np.radians(pitch_deg)
+    yaw = np.radians(yaw_deg)
+    roll = np.radians(roll_deg)
 
+    # Matrices de rotación
+    Rx = np.array([
+        [1, 0, 0],
+        [0, np.cos(pitch), -np.sin(pitch)],
+        [0, np.sin(pitch),  np.cos(pitch)]
+    ])
+    Ry = np.array([
+        [np.cos(yaw), 0, np.sin(yaw)],
+        [0, 1, 0],
+        [-np.sin(yaw), 0, np.cos(yaw)]
+    ])
+    Rz = np.array([
+        [np.cos(roll), -np.sin(roll), 0],
+        [np.sin(roll),  np.cos(roll), 0],
+        [0, 0, 1]
+    ])
 
-def vtk_visualization_image(request): #de /front es el que hace todo
+    R = Rz @ Ry @ Rx  # rotación combinada
+    base_normal = np.array([0.3, 0.3, 0.99])  # tu orientación original
+    rotated_normal = R @ base_normal
+    rotated_normal /= np.linalg.norm(rotated_normal)
+    return rotated_normal.tolist()
+
+def vtk_visualization_image(request, mov):
     data = json.loads(request)
-    x = data['x']
-    y = data['y']
-    z = data['z']
-    
-    normal_global[0]=x
-    normal_global[1]=y
-    normal_global[2]=z
 
+    # --- Obtener la rotación actual del transductor ---
+    pos, rot = mov.get_current_position(), mov.get_current_orientation()
+
+    # Convertir la rotación (pitch, yaw, roll) a vector normal
+    normal = rotation_to_normal(*rot)
+
+    # --- CORRECCIÓN: asegurar que el plano corte el cuerpo ---
+    # Si el transductor está fuera, desplazamos el plano hacia adentro (por el vector normal)
+    # offset ajusta qué tan "profundo" entra el plano en el volumen
+    offset = 1.05  # este valor suele ser ~la distancia del transductor al centro
+    origin = [
+        pos[0] + normal[0] * offset,
+        pos[1] + normal[1] * offset,
+        pos[2] + normal[2] * offset - 0.02  # leve ajuste como tu plano original
+    ]
+
+    # --- (opcional) log para depuración ---
+    print(f"Posición: {pos}")
+    print(f"Rotación (pitch, yaw, roll): {rot}")
+    print(f"Normal: {normal}")
+    print(f"Origen del plano: {origin}")
+
+    # --- Mantener compatibilidad con tu versión previa ---
     if not mallas:
         levantarMallas()
-    
+
     filled_slices = []
     for malla in mallas:
-        filled_slice = slice_and_fill_mesh_vtk(malla, origin=[0, 0, -0.02], normal=normal_global)
+        filled_slice = slice_and_fill_mesh_vtk(
+            malla,
+            origin=origin,
+            normal=normal
+        )
         filled_slices.append(filled_slice)
 
     slice_image = slice_to_image(filled_slices, mallas_colors)
-    
-    return slice_image
+
+    return slice_image, pos, normal
 
 
 def red128(request):
