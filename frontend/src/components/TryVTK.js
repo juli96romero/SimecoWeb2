@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import VTKViewer from "./VTKViewer";
+import VTKViewer from "./VTKViewerMovable";
 import ImageDisplay from "./ImageDisplay";
 import ControlButtons from "./ControlButtons";
 import ArrowButtons from "./ArrowButtons";
 import BrightnessSlider from "./BrightnessSlider";
+
 
 const TryVTK = () => {
   const [xValue, setXValue] = useState(0.3);
@@ -24,6 +25,8 @@ const TryVTK = () => {
 
   // Estado para almacenar la posición del actor especial
   const [specialActorPosition, setSpecialActorPosition] = useState([0, 0, 0]);
+  const [specialActorRotation, setSpecialActorRotation] = useState([0, 0, 0]);
+  const [specialActorForward, setSpecialActorForward] = useState([0, 0, 1]);
 
   const brightnessRefs = useRef([
     brightnessGeneral,
@@ -57,12 +60,10 @@ const TryVTK = () => {
     setBrightness6(0);
     setBrightness7(0);
     setBrightness8(0);
-    setArrowUpCount(0);
-    setArrowDownCount(0);
-    setArrowLeftCount(0);
-    setArrowRightCount(0);
+
     setShowImage2(false); // Resetear también el estado de la imagen 2
     setImageData2(null); // Limpiar la imagen 2
+    sendMessage("reset", "reset");
   };
 
   useEffect(() => {
@@ -73,13 +74,31 @@ const TryVTK = () => {
     chatSocket.current.onmessage = (e) => {
       const data = JSON.parse(e.data);
       console.log('posicion recibida en tryvtk', data.position);
-      console.log('image_data recibida en tryvtk', data.image_data_2);
+      console.log('rotation', data.rotation);
+
       if (data.position) {
         // Asegúrate de que data.position es un array de 3 números
         if (Array.isArray(data.position)) {
           setSpecialActorPosition(data.position);
         } else {
           console.error("Posición recibida no es un array válido:", data.position);
+        }
+      }
+      if (data.forward) {
+        if (Array.isArray(data.forward)) {
+          setSpecialActorForward(data.forward);
+          console.log("forward recibido:", data.forward);
+        } else {
+          console.error("Forward recibido no es un array válido:", data.forward);
+        }
+      }
+
+      if (data.rotation) {
+        // Asegúrate de que data.position es un array de 3 números
+        if (Array.isArray(data.rotation)) {
+          setSpecialActorRotation(data.rotation);
+        } else {
+          console.error("Rotation recibida no es un array válido:", data.position);
         }
       }
       
@@ -102,60 +121,58 @@ const TryVTK = () => {
   }, []);
 
   // Función para enviar mensajes
-  const sendMessage = useCallback((direction = null) => {
+  const sendMessage = useCallback((direction = null, action = null) => {
     if (!chatSocket.current || chatSocket.current.readyState !== WebSocket.OPEN) {
-      console.error("WebSocket no está conectado");
-      return;
+        console.error("WebSocket no está conectado");
+        return;
     }
     
+    // Mensaje especial para reset
+    if (action === "reset") {
+        console.log("Enviando mensaje RESET a través del WebSocket");
+        chatSocket.current.send(
+            JSON.stringify({
+                direction: "reset",
+                action: "reset",
+                message: "reset"
+            })
+        );
+        return;
+    }
+    
+    // Mensaje normal para otros casos
     console.log("Enviando mensaje a través del WebSocket");
     chatSocket.current.send(
-      JSON.stringify({
-        message: "message",
-        x: xValue + 0.01 * (Math.random() * 2 - 1),
-        y: yValue + 0.01 * (Math.random() * 2 - 1),
-        z: zValue + 0.01 * (Math.random() * 2 - 1),
-        brightness: brightnessRefs.current[0],
-        brightness1: brightnessRefs.current[1],
-        brightness2: brightnessRefs.current[2],
-        brightness3: brightnessRefs.current[3],
-        brightness4: brightnessRefs.current[4],
-        brightness5: brightnessRefs.current[5],
-        brightness6: brightnessRefs.current[6],
-        brightness7: brightnessRefs.current[7],
-        brightness8: brightnessRefs.current[8],
-        arrowUp: arrowUpCount,
-        arrowDown: arrowDownCount,
-        arrowLeft: arrowLeftCount,
-        arrowRight: arrowRightCount,
-        specialActorPosition: specialActorPosition,
-        direction: direction,
-        show_image_2: showImage2, // Enviar el estado de visualización de imagen 2
-      })
+        JSON.stringify({
+            message: "message",
+            x: xValue + 0.01 * (Math.random() * 2 - 1),
+            y: yValue + 0.01 * (Math.random() * 2 - 1),
+            z: zValue + 0.01 * (Math.random() * 2 - 1),
+            brightness: brightnessRefs.current[0],
+            brightness1: brightnessRefs.current[1],
+            brightness2: brightnessRefs.current[2],
+            brightness3: brightnessRefs.current[3],
+            brightness4: brightnessRefs.current[4],
+            brightness5: brightnessRefs.current[5],
+            brightness6: brightnessRefs.current[6],
+            brightness7: brightnessRefs.current[7],
+            brightness8: brightnessRefs.current[8],
+            arrowUp: arrowUpCount,
+            arrowDown: arrowDownCount,
+            arrowLeft: arrowLeftCount,
+            arrowRight: arrowRightCount,
+            specialActorPosition: specialActorPosition,
+            direction: direction,
+            action: action,
+            show_image_2: showImage2,
+        })
     );
   }, [xValue, yValue, zValue, arrowUpCount, arrowDownCount, arrowLeftCount, arrowRightCount, specialActorPosition, showImage2]);
 
   // Función para manejar clics en las flechas
-  const handleArrowClick = useCallback((direction) => {
-    switch (direction) {
-      case "up":
-        setArrowUpCount((prev) => prev + 1);
-        break;
-      case "down":
-        setArrowDownCount((prev) => prev + 1);
-        break;
-      case "left":
-        setArrowLeftCount((prev) => prev + 1);
-        break;
-      case "right":
-        setArrowRightCount((prev) => prev + 1);
-        break;
-      default:
-        break;
-    }
-
-    // Enviar la dirección de movimiento a través del WebSocket
-    sendMessage(direction);
+  const handleArrowClick = useCallback((direction, action) => {
+    // Enviar la dirección y acción a través del WebSocket
+    sendMessage(direction, action);
   }, [sendMessage]);
 
   // Manejador de eventos de teclado
@@ -164,19 +181,19 @@ const TryVTK = () => {
     switch (event.key) {
       case "ArrowUp":
         event.preventDefault(); // Prevenir comportamiento por defecto
-        handleArrowClick("up");
+        handleArrowClick("up", "move");
         break;
       case "ArrowDown":
         event.preventDefault();
-        handleArrowClick("down");
+        handleArrowClick("down", "move");
         break;
       case "ArrowLeft":
         event.preventDefault();
-        handleArrowClick("left");
+        handleArrowClick("left", "move");
         break;
       case "ArrowRight":
         event.preventDefault();
-        handleArrowClick("right");
+        handleArrowClick("right", "move");
         break;
       default:
         break;
@@ -221,7 +238,10 @@ const TryVTK = () => {
         <VTKViewer
           containerRef={vtkContainerRef}
           onSpecialActorPositionChange={setSpecialActorPosition}
+          onSpecialActorRotationChange={setSpecialActorRotation}
           specialActorPosition={specialActorPosition}
+          specialActorRotation={specialActorRotation}
+          specialActorForward={specialActorForward}
         />
         <div id="controls">
           <ControlButtons onGenerate={buttonPressed} onReset={resetValues} />

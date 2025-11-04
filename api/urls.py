@@ -21,6 +21,7 @@ urlpatterns = [
     path('polySpline/', views.createpoly_spline, name='Crea malla poly para el volumen de la panza a partir de ParametricSpline'),
     path('movement/', views.vtk_visualization_with_mov, name='Movimiento fallido con la perspectiva'),
     path('movement_ellipsoid/', views.createpoly_ellipsoid_with_mov, name='Movimiento'),
+    path('solo_la_piel/', views.solo_la_piel, name='piel'),
 
 
     ######ENDPOINTS name comienza con 'api_'

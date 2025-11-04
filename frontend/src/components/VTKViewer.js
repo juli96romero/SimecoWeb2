@@ -5,8 +5,9 @@ import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
 import vtkSTLReader from "@kitware/vtk.js/IO/Geometry/STLReader";
 import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
 import meshColors from "./meshColors";
+import { get } from "@kitware/vtk.js/macros";
 
-const VTKViewer = ({ containerRef, onSpecialActorPositionChange, specialActorPosition }) => {
+const VTKViewer = ({ containerRef, onSpecialActorPositionChange, onSpecialActorRotationChange, specialActorPosition, specialActorRotation }) => {
   const context = useRef(null);
   const specialActorRef = useRef(null); // Referencia para el actor especial
 
@@ -20,12 +21,24 @@ const VTKViewer = ({ containerRef, onSpecialActorPositionChange, specialActorPos
     return null;
   }, []);
 
+  const getSpecialActorRotation = useCallback(() => {
+    if (specialActorRef.current) {
+      const rotation = specialActorRef.current.getRotation();
+      console.log("Posición actual del actor especial:", rotation); // Debug
+      return rotation;
+    }
+    return null;
+  }, []);
+
   // Efecto para notificar al padre cuando la posición cambia
   useEffect(() => {
     if (onSpecialActorPositionChange) {
       onSpecialActorPositionChange(getSpecialActorPosition());
     }
-  }, [onSpecialActorPositionChange, getSpecialActorPosition]);
+    if (onSpecialActorRotationChange) {
+      onSpecialActorRotationChange(getSpecialActorRotation());
+    }
+  }, [onSpecialActorPositionChange, getSpecialActorPosition, onSpecialActorRotationChange, getSpecialActorRotation]);
 
   useEffect(() => {
     if (specialActorRef.current && specialActorPosition) {
@@ -34,8 +47,12 @@ const VTKViewer = ({ containerRef, onSpecialActorPositionChange, specialActorPos
       // Verificar que la posición es válida
       if (Array.isArray(specialActorPosition)) {
         specialActorRef.current.setPosition(...specialActorPosition);
+        specialActorRef.current.setOrientation(...specialActorRotation);
         console.log("Posición del actor especial actualizada:", 
           specialActorRef.current.getPosition());
+        console.log("rotacion actual del actor especial:", 
+          specialActorRef.current.getOrientation());
+        // Forzar el rerenderizado de la escena
         
         if (context.current?.renderWindow) {
           context.current.renderWindow.render();
@@ -112,6 +129,10 @@ const VTKViewer = ({ containerRef, onSpecialActorPositionChange, specialActorPos
                   // Notificar al padre la posición inicial
                   onSpecialActorPositionChange(actor.getPosition());
                 }
+                if (onSpecialActorRotationChange) {
+                  // Notificar al padre la posición inicial
+                  onSpecialActorRotationChange(actor.getOrientation());
+                }
               }
 
               // Agregar el actor al renderizador
@@ -136,7 +157,7 @@ const VTKViewer = ({ containerRef, onSpecialActorPositionChange, specialActorPos
         context.current = null;
       }
     };
-  }, [containerRef, onSpecialActorPositionChange]);
+  }, [containerRef, onSpecialActorPositionChange, onSpecialActorRotationChange]);
 
   return null;
 };

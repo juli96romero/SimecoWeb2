@@ -70,6 +70,37 @@ def levantar_stl():
                     break
             mallas.append((polydata, color))
 
+def solo_la_piel(request):
+
+    folder_path = "api/stl_para usar"
+    archivos = [f for f in os.listdir(folder_path) if f.endswith('skin.stl')]
+
+    for archivo in archivos:
+        reader = vtk.vtkSTLReader()
+        reader.SetFileName(os.path.join(folder_path, archivo))
+        reader.Update()
+        polydata = reader.GetOutput()
+    mapper = vtk.vtkPolyDataMapper()
+    mapper.SetInputData(polydata)
+    actor = vtk.vtkActor()
+    actor.SetMapper(mapper)
+    actor.GetProperty().SetOpacity(1)
+    renderer.AddActor(actor)
+    render_window = vtk.vtkRenderWindow()
+    render_window.AddRenderer(renderer)
+    render_window.SetWindowName("Transductor")
+    render_window.SetSize(1000, 800)
+    renderer.SetBackground(1, 1, 1)
+
+    interactor = vtk.vtkRenderWindowInteractor()
+    interactor.SetRenderWindow(render_window)
+
+    render_window.Render()
+    interactor.Initialize()
+    interactor.Start()
+    
+    return HttpResponse(f"")
+
 def mostrar_ventana_vtk():
     global ultima_posicion, ultima_rotacion
 
@@ -386,12 +417,12 @@ def vtk_visualization(request, normal=normal_global):
     # Asegrate de que las mallas estn disponibles
     if not mallas:
         levantarMallas()
-
+    print("normal en vtk_visualization:", normal)
     # Agregar las mallas existentes
     for malla in mallas:        
         filled_slice = slice_and_fill_mesh_vtk(
             malla, 
-            origin=[0, 0, -1.25], 
+            origin=[0, 0, 0], 
             normal=normal
         )
         mesh_mapper = vtk.vtkPolyDataMapper()
@@ -646,10 +677,55 @@ render_window.AddRenderer(renderer)
 render_window_interactor = vtk.vtkRenderWindowInteractor()
 render_window_interactor.SetRenderWindow(render_window)
 
-def slice_to_image(filled_slices, mesh_colors):
+def slice_to_image(filled_slices, mesh_colors, normal=normal_global, origin=[0, 0, -0.02]):
     # Limpiar el renderer de actores anteriores
     renderer.RemoveAllViewProps()
 
+    # Calcular el bounding box de todos los slices para centrar la vista
+    bounds = [float('inf'), float('-inf'), float('inf'), float('-inf'), float('inf'), float('-inf')]
+    
+    for filled_slice in filled_slices:
+        slice_bounds = filled_slice.GetBounds()
+        for i in range(0, 6, 2):
+            bounds[i] = min(bounds[i], slice_bounds[i])
+            bounds[i+1] = max(bounds[i+1], slice_bounds[i+1])
+
+    # Centro del bounding box
+    center = [
+        (bounds[0] + bounds[1]) / 2,
+        (bounds[2] + bounds[3]) / 2, 
+        (bounds[4] + bounds[5]) / 2
+    ]
+
+    # Configurar la cámara para mirar perpendicular al plano
+    camera = renderer.GetActiveCamera()
+    
+    # Normalizar el vector normal
+    normal_length = (normal[0]**2 + normal[1]**2 + normal[2]**2)**0.5
+    if normal_length > 0:
+        normal = [n/normal_length for n in normal]
+    
+    # Calcular posición de la cámara (alejada en dirección opuesta a la normal)
+    distance = max((bounds[1]-bounds[0]), (bounds[3]-bounds[2]), (bounds[5]-bounds[4])) * 2
+    camera_position = [
+        center[0] - normal[0] * distance,
+        center[1] - normal[1] * distance, 
+        center[2] - normal[2] * distance
+    ]
+    
+    # Calcular vector "up" apropiado
+    if abs(normal[2]) > 0.8:  # Si el plano es casi vertical
+        up_vector = [0, 1, 0]  # Usar Y como up
+    else:
+        up_vector = [0, 0, 1]  # Usar Z como up
+    
+    # Configurar cámara
+    camera.SetPosition(camera_position)
+    camera.SetFocalPoint(center)
+    camera.SetViewUp(up_vector)
+    camera.SetParallelProjection(True)  # Usar proyección paralela para evitar distorsión
+    
+    # Añadir todos los slices al renderer
     for i, filled_slice in enumerate(filled_slices):
         mapper = vtk.vtkPolyDataMapper()
         mapper.SetInputData(filled_slice)
@@ -657,17 +733,21 @@ def slice_to_image(filled_slices, mesh_colors):
         actor = vtk.vtkActor()
         actor.SetMapper(mapper)
         
-        # Asignar el color segn el ndice de la malla
+        # Asignar el color según el índice de la malla
         color = mesh_colors[i]
         actor.GetProperty().SetColor(color)
         actor.GetProperty().LightingOff()  
+        actor.GetProperty().SetLineWidth(2)
 
         renderer.AddActor(actor)
 
     renderer.SetBackground(0, 0, 0)
+    renderer.ResetCamera()  # Ajustar la cámara al contenido visible
 
+    # Renderizar
     render_window.Render()
     
+    # Capturar imagen
     window_to_image_filter = vtk.vtkWindowToImageFilter()
     window_to_image_filter.SetInput(render_window)
     window_to_image_filter.Update()
@@ -681,7 +761,136 @@ def slice_to_image(filled_slices, mesh_colors):
     
     return arr
 
+def slice_to_image_2(filled_slices, mesh_colors, normal, origin):
+    """
+    Convierte los resultados de corte (filled_slices) en una imagen 2D coherente
+    con la posición y orientación del transductor.
+    
+    Parámetros:
+        filled_slices: lista de vtkPolyData (uno por órgano)
+        mesh_colors: lista de tuplas RGB para cada órgano
+        normal: vector normal global del plano de corte (list o np.array)
+        origin: punto 3D del plano de corte (list o np.array)
+    """
 
+    # Limpiar actores anteriores
+    renderer.RemoveAllViewProps()
+
+    # --- Normalizar la normal ---
+    normal = np.array(normal, dtype=float)
+    n_len = np.linalg.norm(normal)
+    if n_len == 0:
+        raise ValueError("La normal del plano no puede tener longitud 0.")
+    normal /= n_len
+
+    origin = np.array(origin, dtype=float)
+
+    # --- Calcular bounds de todos los slices ---
+    bounds = [float('inf'), float('-inf'),
+              float('inf'), float('-inf'),
+              float('inf'), float('-inf')]
+
+    for filled_slice in filled_slices:
+        slice_bounds = filled_slice.GetBounds()
+        for i in range(0, 6, 2):
+            bounds[i] = min(bounds[i], slice_bounds[i])
+            bounds[i + 1] = max(bounds[i + 1], slice_bounds[i + 1])
+
+    # --- Calcular tamaño de la escena ---
+    scene_size = max(
+        bounds[1] - bounds[0],
+        bounds[3] - bounds[2],
+        bounds[5] - bounds[4]
+    )
+
+    # --- Configurar cámara ---
+    camera = renderer.GetActiveCamera()
+
+    # La cámara debe mirar hacia el plano, desde atrás del transductor
+    camera_distance = scene_size * 2.0
+    camera_position = origin - normal * camera_distance
+
+    # Determinar vector "up" apropiado para evitar rotaciones indeseadas
+    # Usamos el vector más ortogonal posible a la normal
+    world_up = np.array([0, 0, 1])
+    if abs(np.dot(normal, world_up)) > 0.9:
+        world_up = np.array([0, 1, 0])
+
+    right = np.cross(world_up, normal)
+    up = np.cross(normal, right)
+    up /= np.linalg.norm(up)
+
+    # Aplicar parámetros de cámara
+    camera.SetPosition(*camera_position)
+    camera.SetFocalPoint(*origin)
+    camera.SetViewUp(*up)
+    camera.SetParallelProjection(True)
+    camera.SetParallelScale(scene_size / 2)
+
+    # --- Añadir los actores ---
+    for i, filled_slice in enumerate(filled_slices):
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputData(filled_slice)
+
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+
+        color = mesh_colors[i]
+        actor.GetProperty().SetColor(color)
+        actor.GetProperty().LightingOff()
+        actor.GetProperty().SetLineWidth(2)
+
+        renderer.AddActor(actor)
+
+    # --- Configurar render ---
+    renderer.SetBackground(0, 0, 0)
+    renderer.ResetCameraClippingRange()
+
+    render_window.Render()
+
+    # --- Capturar imagen ---
+    window_to_image_filter = vtk.vtkWindowToImageFilter()
+    window_to_image_filter.SetInput(render_window)
+    window_to_image_filter.Update()
+
+    vtk_image = window_to_image_filter.GetOutput()
+    width, height, _ = vtk_image.GetDimensions()
+    vtk_array = vtk_image.GetPointData().GetScalars()
+    components = vtk_array.GetNumberOfComponents()
+
+    arr = vtk_to_numpy(vtk_array).reshape(height, width, components)
+
+    return arr
+
+
+def rotation_to_normal(pitch_deg, yaw_deg, roll_deg):
+    """Convierte los ángulos de Euler (grados) en un vector normal 3D"""
+    pitch = np.radians(pitch_deg)
+    yaw = np.radians(yaw_deg)
+    roll = np.radians(roll_deg)
+
+    # Matrices de rotación
+    Rx = np.array([
+        [1, 0, 0],
+        [0, np.cos(pitch), -np.sin(pitch)],
+        [0, np.sin(pitch),  np.cos(pitch)]
+    ])
+    Ry = np.array([
+        [np.cos(yaw), 0, np.sin(yaw)],
+        [0, 1, 0],
+        [-np.sin(yaw), 0, np.cos(yaw)]
+    ])
+    Rz = np.array([
+        [np.cos(roll), -np.sin(roll), 0],
+        [np.sin(roll),  np.cos(roll), 0],
+        [0, 0, 1]
+    ])
+
+    R = Rz @ Ry @ Rx  # rotación combinada
+    base_normal = np.array([0.3, 0.3, 0.99])  # tu orientación original
+    rotated_normal = R @ base_normal
+    rotated_normal /= np.linalg.norm(rotated_normal)
+    return rotated_normal.tolist()
 
 
 def vtk_visualization_image(request): #de /front es el que hace todo
@@ -703,6 +912,25 @@ def vtk_visualization_image(request): #de /front es el que hace todo
         filled_slices.append(filled_slice)
 
     slice_image = slice_to_image(filled_slices, mallas_colors)
+    
+    return slice_image
+
+def vtk_visualization_image_w_origin(request): #de /front es el que hace todo
+    data = json.loads(request)
+    origin = data['origin']
+    normal = data['normal']
+    
+    print("origin recibido:", origin)
+    print("normal recibido:", normal)
+    if not mallas:
+        levantarMallas()
+    
+    filled_slices = []
+    for malla in mallas:
+        filled_slice = slice_and_fill_mesh_vtk(malla, origin=origin, normal=normal)
+        filled_slices.append(filled_slice)
+
+    slice_image = slice_to_image_2(filled_slices, mallas_colors, normal, origin)
     
     return slice_image
 
