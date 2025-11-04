@@ -3,16 +3,16 @@ import React from "react";
 const ArrowButtons = ({ onArrowClick }) => {
   return (
     <div className="arrow-buttons">
-      <button className="arrow-button" onClick={() => onArrowClick("up", "move")}>
+      <button className="arrow-button" onClick={() => onArrowClick("right", "move")}>
         ↑
       </button>
-      <button className="arrow-button" onClick={() => onArrowClick("down", "move")}>
+      <button className="arrow-button" onClick={() => onArrowClick("left", "move")}>
         ↓
       </button>
-      <button className="arrow-button" onClick={() => onArrowClick("right", "move")}>
+      <button className="arrow-button" onClick={() => onArrowClick("up", "move")}>
         ←
       </button>
-      <button className="arrow-button" onClick={() => onArrowClick("left", "move")}>
+      <button className="arrow-button" onClick={() => onArrowClick("down", "move")}>
         →
       </button>
       

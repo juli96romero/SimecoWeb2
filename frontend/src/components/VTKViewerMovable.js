@@ -6,6 +6,7 @@ import vtkSTLReader from "@kitware/vtk.js/IO/Geometry/STLReader";
 import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
 import vtkInteractorStyleTrackballCamera from "@kitware/vtk.js/Interaction/Style/InteractorStyleTrackballCamera";
 import meshColors from "./meshColors";
+import { vec3, mat4 } from 'gl-matrix';
 
 const VTKViewerMovable = ({
   containerRef,
@@ -13,6 +14,7 @@ const VTKViewerMovable = ({
   onSpecialActorRotationChange,
   specialActorPosition,
   specialActorRotation,
+  specialActorForward,
 }) => {
   const context = useRef(null);
   const transductorRef = useRef(null);
@@ -227,21 +229,83 @@ const VTKViewerMovable = ({
     };
   }, [containerRef, onSpecialActorPositionChange, onSpecialActorRotationChange]);
 
-  // Sincronizar con posición externa
   useEffect(() => {
-    if (transductorRef.current && Array.isArray(specialActorPosition)) {
-      console.log("Actualizando posición desde props:", specialActorPosition);
-      transductorRef.current.setPosition(...specialActorPosition);
-      
-      if (specialActorRotation && Array.isArray(specialActorRotation)) {
-        transductorRef.current.setOrientation(...specialActorRotation);
-      }
-      
-      if (context.current?.renderWindow) {
-        context.current.renderWindow.render();
-      }
+    if (
+      !transductorRef.current ||
+      !Array.isArray(specialActorPosition) ||
+      !Array.isArray(specialActorForward)
+    ) {
+      return;
     }
-  }, [specialActorPosition, specialActorRotation]);
+
+    const actor = transductorRef.current;
+
+    // Normalizamos forward
+    const forward = vec3.normalize([], specialActorForward);
+
+    // Eje por defecto del modelo (cono): +Z
+    const defaultAxis = [0, 0, 1];
+
+    // Calculamos axis y angle para llevar defaultAxis -> forward
+    const axis = vec3.cross([], defaultAxis, forward);
+    const axisLen = vec3.length(axis);
+
+    // Clamp dot para seguridad numérica
+    let dot = vec3.dot(defaultAxis, forward);
+    if (dot > 1.0) dot = 1.0;
+    if (dot < -1.0) dot = -1.0;
+
+    const angleRad = Math.acos(dot);
+
+    // Crear matriz 4x4 identidad
+    const m = mat4.create(); // identidad
+
+    // Si axis es muy pequeño => forward colineal con defaultAxis
+    if (axisLen > 1e-6) {
+      vec3.scale(axis, axis, 1 / axisLen); // normalizar axis
+      // Construir rotación por axis-angle (gl-matrix espera RADIANES)
+      const rot = mat4.create();
+      mat4.fromRotation(rot, angleRad, axis); // rot = rot(axis, angle)
+      // aplicar rotación en la matriz m
+      mat4.multiply(m, rot, m); // m = rot * m (rotaciones primero)
+    } else {
+      // Si están opuestos (dot ≈ -1), elegimos un eje ortogonal cualquiera
+      if (dot < -0.999999) {
+        // forward es -defaultAxis, rot 180° sobre X (por ejemplo)
+        mat4.fromRotation(m, Math.PI, [1, 0, 0]);
+      }
+      // si dot ≈ 1, m ya es identidad
+    }
+
+    // Luego aplicar la traslación (en el mismo sistema)
+    mat4.translate(m, m, specialActorPosition); // m = m * T(pos) (gl-matrix usa column-major)
+
+    // Convertir a array (Float32Array/Array de 16)
+    const matArray = Array.from(m);
+
+    // Intentar aplicar la matriz al actor
+    try {
+      // muchas versiones aceptan un array de 16 nums
+      if (typeof actor.setUserMatrix === 'function') {
+        actor.setUserMatrix(matArray);
+      } else if (actor.getUserMatrix && typeof actor.getUserMatrix().set === 'function') {
+        // fallback: si getUserMatrix().set existe, usarlo
+        actor.getUserMatrix().set(matArray);
+      } else {
+        console.warn('No se encontró API para setUserMatrix; intentando setMatrix si existe.');
+        if (typeof actor.setMatrix === 'function') {
+          actor.setMatrix(matArray);
+        } else {
+          console.error('No se pudo aplicar la matriz de usuario al actor (API desconocida).');
+        }
+      }
+    } catch (err) {
+      console.error('Error aplicando user matrix al actor:', err);
+    }
+
+    // Forzar render
+    context.current?.renderWindow?.render();
+  }, [specialActorPosition, specialActorForward]);
 
   return null;
 };

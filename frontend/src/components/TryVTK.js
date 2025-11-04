@@ -5,6 +5,7 @@ import ControlButtons from "./ControlButtons";
 import ArrowButtons from "./ArrowButtons";
 import BrightnessSlider from "./BrightnessSlider";
 
+
 const TryVTK = () => {
   const [xValue, setXValue] = useState(0.3);
   const [yValue, setYValue] = useState(0.3);
@@ -25,6 +26,7 @@ const TryVTK = () => {
   // Estado para almacenar la posición del actor especial
   const [specialActorPosition, setSpecialActorPosition] = useState([0, 0, 0]);
   const [specialActorRotation, setSpecialActorRotation] = useState([0, 0, 0]);
+  const [specialActorForward, setSpecialActorForward] = useState([0, 0, 1]);
 
   const brightnessRefs = useRef([
     brightnessGeneral,
@@ -82,10 +84,18 @@ const TryVTK = () => {
           console.error("Posición recibida no es un array válido:", data.position);
         }
       }
+      if (data.forward) {
+        if (Array.isArray(data.forward)) {
+          setSpecialActorForward(data.forward);
+          console.log("forward recibido:", data.forward);
+        } else {
+          console.error("Forward recibido no es un array válido:", data.forward);
+        }
+      }
 
       if (data.rotation) {
         // Asegúrate de que data.position es un array de 3 números
-        if (Array.isArray(data.position)) {
+        if (Array.isArray(data.rotation)) {
           setSpecialActorRotation(data.rotation);
         } else {
           console.error("Rotation recibida no es un array válido:", data.position);
@@ -231,6 +241,7 @@ const TryVTK = () => {
           onSpecialActorRotationChange={setSpecialActorRotation}
           specialActorPosition={specialActorPosition}
           specialActorRotation={specialActorRotation}
+          specialActorForward={specialActorForward}
         />
         <div id="controls">
           <ControlButtons onGenerate={buttonPressed} onReset={resetValues} />
