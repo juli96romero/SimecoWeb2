@@ -618,6 +618,32 @@ class Pix2Pix(pl.LightningModule):
         #fake_image[black_pixels] = [1, 1, 1]
         #fake_image = self.scale_image(fake_image)
         return fake_image 
+    
+
+    def hacerInferenciaFast(self, img_generada):
+        # Configurar modelo en modo evaluación
+        self.gen.eval()
+        
+        with torch.no_grad():  # Evita calcular gradientes para inferencia
+            # Preprocesamiento en un solo paso
+            mask = reformat_label(img_generada)
+            transformed = test_transform(image=img_generada, mask=mask)
+            mask = transformed['mask']
+            
+            # Preparar tensor de entrada más eficientemente
+            mask_tensor = mask.float().unsqueeze(0).unsqueeze(0)  # (1, 1, H, W)
+            
+            # Inferencia
+            fake_image = self.gen(mask_tensor)
+            
+            # Post-procesamiento optimizado
+            fake_image_np = fake_image.squeeze(0).cpu().numpy()  # (C, H, W)
+            fake_image_np = np.transpose(fake_image_np, (1, 2, 0))  # (H, W, C)
+            
+            # Normalización y conversión a uint8 en un solo paso
+            fake_image_uint8 = ((fake_image_np * 0.5 + 0.5) * 255).astype(np.uint8)
+            
+            return fake_image_uint8
 
     
     def validation_step(self,input_path, output_path):
