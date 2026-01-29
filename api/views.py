@@ -763,7 +763,7 @@ def vtk_visualization_image(request, mov):
     ]
 
 
-    debug_transducer_vtk.debug_transducer_vtk(
+    """ debug_transducer_vtk.debug_transducer_vtk(
         position=pos,
         orientation=rot,     # pasamos la matriz
         normal=normal,
@@ -783,7 +783,7 @@ def vtk_visualization_image(request, mov):
     print(f"Normal: {normal}")
     print(f"Origen del plano: {origin}")
 
-    # --- Mantener compatibilidad con tu versión previa ---
+    # --- Mantener compatibilidad con tu versión previa ---"""
     if not mallas:
         levantarMallas()
 
