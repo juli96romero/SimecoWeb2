@@ -22,10 +22,6 @@ from channels.generic.websocket import WebsocketConsumer
 from api.cartesianRemap import fov_optimizer  
 import polarTransform
 from .bitstream_optimizer import BitStreamOptimizer
-from . import debug_transducer_vtk as debug_vtk
-
-
-
 print("Versin de polarTransform:", polarTransform.__version__)
 input_path = "./data/validation/labels"
 output_path = "./results/" 
@@ -124,60 +120,9 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
             # Procesamiento VTK (potencialmente lento)
             vtk_time = 0
             if not self.direction:  # Solo procesar VTK si no hay movimiento
-                # En la parte de VTK, simplifica:
                 vtk_start = time.time()
-
-                # Obtener datos CORRECTOS del nuevo controlador
-                pos = mov.get_current_position()
-                orientation = mov.get_current_orientation()
-                plane_origin, plane_normal = mov.get_current_cut_plane()
-                target_origin = mov.get_target_origin()
-
-                print("=== ESTADO CORREGIDO ===")
-                print(f"Posición transductor: {pos}")
-                print(f"Orientación: {orientation}")
-                print(f"Plano origen: {plane_origin}")  # Este es donde está el PLANO
-                print(f"Plano normal: {plane_normal}")  # Esta es la dirección del plano
-                print(f"Target origin: {target_origin}")  # Este es el CENTRO de la malla
-
-                # Para el debug VTK, muestra:
-                # - Esfera amarilla: posición del transductor
-                # - Esfera verde: ORIGEN del plano de corte (no el target_origin)
-                # - Cono: dirección del transductor
-                # - Plano: centrado en el ORIGEN del plano
-
-                state = mov.get_current_position()
-
-                # Extraer partes útiles
-                pos = state["position"]
-                forward = state["forward"]
-                R_flat = state["rotation_matrix"]  # matriz 3x3 flateada (9 valores)
-                eulers = state["eulers"]
-
-                # Plano de corte
-                plane_origin, plane_normal = mov.get_current_cut_plane()
-                debug_vtk.debug_transducer_vtk(
-                    position=pos,
-                    orientation=R_flat,     # pasamos la matriz
-                    normal=plane_normal,
-                    target_origin=plane_origin,
-                    show_skin=True,
-                    show_position=True,
-                    show_normal=True,
-                    show_plane=True,
-                    show_target=True,
-                    show_orientation=True,
-                    show_cone=True,
-                    scale_factor=0.02
-                )
-
-                # Para el corte VTK, usa los mismos parámetros
-                new_data = json.dumps({
-                    "origin": plane_origin,    # Donde está el plano
-                    "normal": plane_normal,    # Dirección del plano
-                })
-
-                imagen_recorte_vtk = views.vtk_visualization_image_w_origin(new_data)
+                imagen_recorte_vtk, pos, rot = views.vtk_visualization_image(text_data,mov)
+                print("pos y rot desde views:", pos, rot)
                 vtk_time = time.time() - vtk_start
                 logging.info(f"VTK processing time: {vtk_time*1000:.2f}ms")
             else:
@@ -230,21 +175,13 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
             logging.info("-" * 50)
 
             # Enviar respuesta
-            pos = mov.get_current_position()
-            plane_origin, plane_normal = mov.get_current_cut_plane()
-
-            forward_dir = mov._controller.get_forward_direction().tolist()
-
             response_data = {
                 "image_data": image_base64,
                 "image_data_2": bitstream_optimizer.formatAsBitStream_optimized(imagen_recorte_vtk),
-                "position": mov.get_current_position(),
-                "rotation": mov.get_current_orientation(),
-                "forward": forward_dir,  # 🔥 NUEVO: vector dirección
-                "plane_origin": plane_origin,
-                "plane_normal": plane_normal,
+                "position": nueva_posicion,
                 "processing_time": total_time,
                 "direction": self.direction,
+                "rotation": nueva_rotacion
             }
             
             self.send(text_data=json.dumps(response_data))
@@ -279,7 +216,7 @@ class ImageConsumer(WebsocketConsumer):
 
     def receive(self, text_data):
         # Assuming you receive image data in base64 format
-
+        
         image_data = views.vtk_visualization_image(text_data)
         
         # Convert image data to uint8
