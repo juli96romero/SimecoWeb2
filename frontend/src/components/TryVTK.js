@@ -41,6 +41,7 @@ const TryVTK = () => {
   const vtkContainerRef = useRef(null);
   const chatSocket = useRef(null);
   const buttonState = useRef(false);
+  const [isRunning, setIsRunning] = useState(false);
 
   // Estado para los contadores de flechas
   const [arrowUpCount, setArrowUpCount] = useState(0);
@@ -165,6 +166,16 @@ const TryVTK = () => {
     sendMessage(direction, action);
   }, [sendMessage]);
 
+  const toggleGenerate = () => {
+    setIsRunning(prev => {
+      const next = !prev;
+      buttonState.current = next;
+      sendMessage();
+      return next;
+    });
+  };
+
+
   // Manejador de eventos de teclado
   const handleKeyDown = useCallback((event) => {
     // Verificar si la tecla presionada es una de las flechas
@@ -213,12 +224,12 @@ const TryVTK = () => {
 
   return (
     <div className="app-container">
-      <div className="half-screen half-screen-left">
-        <ImageDisplay imageData={imageData} />
-        {/* Mostrar la segunda imagen si está activada */}
+            <div className="eco-viewport">
+        <div className="eco-frame">
+          <ImageDisplay imageData={imageData} />
+        </div>
         {showImage2 && imageData2 && (
-          <div className="image2-container">
-            <h3>Imagen 2</h3>
+          <div className="eco-overlay">
             <ImageDisplay imageData={imageData2} />
           </div>
         )}
@@ -233,36 +244,54 @@ const TryVTK = () => {
           specialActorRotation={specialActorRotation}
         />
         <div id="controls">
-          <ControlButtons onGenerate={buttonPressed} onReset={resetValues} />
+
+        {/* SIMULACIÓN */}
+        <section className="controls-section">
+          <h4>Simulación</h4>
+
+          <ControlButtons
+            isRunning={isRunning}
+            onGenerate={toggleGenerate}
+            onReset={resetValues}
+          />
+
+          <button
+            className={`toggle-button ${showImage2 ? 'active' : ''}`}
+            onClick={toggleImage2}
+          >
+            👁 Imagen base
+          </button>
+        </section>
+
+        {/* TRANSDUCTOR */}
+        <section className="controls-section">
+          <h4>Transductor</h4>
           <ArrowButtons onArrowClick={handleArrowClick} />
-          {/* Botón para activar/desactivar la segunda imagen */}
-          <div className="toggle-button-container">
-            <button 
-              className={`toggle-button ${showImage2 ? 'active' : ''}`}
-              onClick={toggleImage2}
-            >
-              {showImage2 ? 'Ocultar Imagen 2' : 'Mostrar Imagen 2'}
-            </button>
-          </div>
-          <div className="slider-container">
+        </section>
+
+        {/* AJUSTES DE IMAGEN */}
+        <section className="controls-section">
+          <h4>Ajustes de imagen</h4>
+
+          <BrightnessSlider
+            label="Ganancia"
+            value={brightnessGeneral}
+            onChange={setBrightnessGeneral}
+          />
+
+          {[...Array(8)].map((_, i) => (
             <BrightnessSlider
-              label="Brillo General"
-              value={brightnessGeneral}
-              onChange={setBrightnessGeneral}
+              key={i}
+              label={`Filtro ${i + 1}`}
+              value={brightnessRefs.current[i + 1]}
+              onChange={(value) => {
+                const newBrightness = [...brightnessRefs.current];
+                newBrightness[i + 1] = value;
+                brightnessRefs.current = newBrightness;
+              }}
             />
-            {[...Array(8)].map((_, i) => (
-              <BrightnessSlider
-                key={i}
-                label={`Brillo ${i + 1}`}
-                value={brightnessRefs.current[i + 1]}
-                onChange={(value) => {
-                  const newBrightness = [...brightnessRefs.current];
-                  newBrightness[i + 1] = value;
-                  brightnessRefs.current = newBrightness;
-                }}
-              />
-            ))}
-          </div>
+          ))}
+        </section>
         </div>
       </div>
     </div>
