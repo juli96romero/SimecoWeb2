@@ -92,7 +92,7 @@ const TryVTK = () => {
           console.error("Rotation recibida no es un array válido:", data.position);
         }
       }
-      
+
       if (data.image_data) {
         setImageData(`data:image/png;base64,${data.image_data}`);
         if (buttonState.current) sendMessage();
@@ -114,49 +114,49 @@ const TryVTK = () => {
   // Función para enviar mensajes
   const sendMessage = useCallback((direction = null, action = null) => {
     if (!chatSocket.current || chatSocket.current.readyState !== WebSocket.OPEN) {
-        console.error("WebSocket no está conectado");
-        return;
+      console.error("WebSocket no está conectado");
+      return;
     }
-    
+
     // Mensaje especial para reset
     if (action === "reset") {
-        console.log("Enviando mensaje RESET a través del WebSocket");
-        chatSocket.current.send(
-            JSON.stringify({
-                direction: "reset",
-                action: "reset",
-                message: "reset"
-            })
-        );
-        return;
+      console.log("Enviando mensaje RESET a través del WebSocket");
+      chatSocket.current.send(
+        JSON.stringify({
+          direction: "reset",
+          action: "reset",
+          message: "reset"
+        })
+      );
+      return;
     }
-    
+
     // Mensaje normal para otros casos
     console.log("Enviando mensaje a través del WebSocket");
     chatSocket.current.send(
-        JSON.stringify({
-            message: "message",
-            x: xValue + 0.01 * (Math.random() * 2 - 1),
-            y: yValue + 0.01 * (Math.random() * 2 - 1),
-            z: zValue + 0.01 * (Math.random() * 2 - 1),
-            brightness: brightnessRefs.current[0],
-            brightness1: brightnessRefs.current[1],
-            brightness2: brightnessRefs.current[2],
-            brightness3: brightnessRefs.current[3],
-            brightness4: brightnessRefs.current[4],
-            brightness5: brightnessRefs.current[5],
-            brightness6: brightnessRefs.current[6],
-            brightness7: brightnessRefs.current[7],
-            brightness8: brightnessRefs.current[8],
-            arrowUp: arrowUpCount,
-            arrowDown: arrowDownCount,
-            arrowLeft: arrowLeftCount,
-            arrowRight: arrowRightCount,
-            specialActorPosition: specialActorPosition,
-            direction: direction,
-            action: action,
-            show_image_2: showImage2,
-        })
+      JSON.stringify({
+        message: "message",
+        x: xValue + 0.01 * (Math.random() * 2 - 1),
+        y: yValue + 0.01 * (Math.random() * 2 - 1),
+        z: zValue + 0.01 * (Math.random() * 2 - 1),
+        brightness: brightnessRefs.current[0],
+        brightness1: brightnessRefs.current[1],
+        brightness2: brightnessRefs.current[2],
+        brightness3: brightnessRefs.current[3],
+        brightness4: brightnessRefs.current[4],
+        brightness5: brightnessRefs.current[5],
+        brightness6: brightnessRefs.current[6],
+        brightness7: brightnessRefs.current[7],
+        brightness8: brightnessRefs.current[8],
+        arrowUp: arrowUpCount,
+        arrowDown: arrowDownCount,
+        arrowLeft: arrowLeftCount,
+        arrowRight: arrowRightCount,
+        specialActorPosition: specialActorPosition,
+        direction: direction,
+        action: action,
+        show_image_2: showImage2,
+      })
     );
   }, [xValue, yValue, zValue, arrowUpCount, arrowDownCount, arrowLeftCount, arrowRightCount, specialActorPosition, showImage2]);
 
@@ -204,7 +204,7 @@ const TryVTK = () => {
   // Agregar event listener para teclas
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);
-    
+
     // Limpiar el event listener al desmontar el componente
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
@@ -224,7 +224,7 @@ const TryVTK = () => {
 
   return (
     <div className="app-container">
-            <div className="eco-viewport">
+      <div className="eco-viewport">
         <div className="eco-frame">
           <ImageDisplay imageData={imageData} />
         </div>
@@ -243,56 +243,51 @@ const TryVTK = () => {
           specialActorPosition={specialActorPosition}
           specialActorRotation={specialActorRotation}
         />
-        <div id="controls">
+        <div class="controls-wrapper"></div>
+          <div id="controls">
+            <section className="controls-section">
+              <h4>Simulación</h4>
+              <ControlButtons
+                isRunning={isRunning}
+                onGenerate={toggleGenerate}
+                onReset={resetValues}
+              />
+              <button
+                className={`toggle-button ${showImage2 ? 'active' : ''}`}
+                onClick={toggleImage2}
+              >
+                👁 Imagen base
+              </button>
+            </section>
 
-        {/* SIMULACIÓN */}
-        <section className="controls-section">
-          <h4>Simulación</h4>
+            {/* TRANSDUCTOR */}
+            <section className="controls-section">
+              <h4>Transductor</h4>
+              <ArrowButtons onArrowClick={handleArrowClick} />
+            </section>
 
-          <ControlButtons
-            isRunning={isRunning}
-            onGenerate={toggleGenerate}
-            onReset={resetValues}
-          />
-
-          <button
-            className={`toggle-button ${showImage2 ? 'active' : ''}`}
-            onClick={toggleImage2}
-          >
-            👁 Imagen base
-          </button>
-        </section>
-
-        {/* TRANSDUCTOR */}
-        <section className="controls-section">
-          <h4>Transductor</h4>
-          <ArrowButtons onArrowClick={handleArrowClick} />
-        </section>
-
-        {/* AJUSTES DE IMAGEN */}
-        <section className="controls-section">
-          <h4>Ajustes de imagen</h4>
-
-          <BrightnessSlider
-            label="Ganancia"
-            value={brightnessGeneral}
-            onChange={setBrightnessGeneral}
-          />
-
-          {[...Array(8)].map((_, i) => (
-            <BrightnessSlider
-              key={i}
-              label={`Filtro ${i + 1}`}
-              value={brightnessRefs.current[i + 1]}
-              onChange={(value) => {
-                const newBrightness = [...brightnessRefs.current];
-                newBrightness[i + 1] = value;
-                brightnessRefs.current = newBrightness;
-              }}
-            />
-          ))}
-        </section>
-        </div>
+            {/* AJUSTES DE IMAGEN */}
+            <section className="controls-section">
+              <h4>Ajustes de imagen</h4>
+              <BrightnessSlider
+                label="Ganancia"
+                value={brightnessGeneral}
+                onChange={setBrightnessGeneral}
+              />
+              {[...Array(8)].map((_, i) => (
+                <BrightnessSlider
+                  key={i}
+                  label={`Filtro ${i + 1}`}
+                  value={brightnessRefs.current[i + 1]}
+                  onChange={(value) => {
+                    const newBrightness = [...brightnessRefs.current];
+                    newBrightness[i + 1] = value;
+                    brightnessRefs.current = newBrightness;
+                  }}
+                />
+              ))}
+            </section>
+          </div>
       </div>
     </div>
   );
