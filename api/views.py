@@ -215,15 +215,15 @@ def interfaz_html(request):
     """)
 
 mesh_colors = {
-    'pelvis': (151/255.0, 151/255.0, 147/255.0),
-    'spleen': (1.0, 0, 1.0),
-    'liver': (100/255.0, 0, 100/255.0),
-    'surrenalGland': (0, 1.0, 1.0),
-    'kidney': (1.0, 1.0, 0),
-    'gallbladder': (0, 1.0, 0),
-    'pancreas': (0, 0, 1.0),
-    'artery': (1.0, 0, 0),
-    'bones': (1.0, 1.0, 1.0)
+    'pelvis': (151/255.0, 151/255.0, 147/255.0),      # gris
+    'spleen': (1.0, 0, 1.0),                          # magenta
+    'liver': (100/255.0, 0, 100/255.0),               # violeta oscuro
+    'surrenalgland': (0, 1.0, 1.0),                    # cian
+    'kidney': (1.0, 1.0, 0),                          # amarillo
+    'gallbladder': (0, 1.0, 0),                       # verde
+    'pancreas': (0, 0, 1.0),                          # azul
+    'artery': (0, 0, 1),                            # rojo
+    'bones': (1.0, 1.0, 1.0)                          # blanco
 }
 
 normal_global = [0.3 , 0.3 , 0.99]
@@ -341,7 +341,31 @@ def move_transducer(action):
     return (x, y, z)
 
 
+def apply_color_to_polydata(polydata, color):
+    r, g, b = color
+
+    colors = vtk.vtkUnsignedCharArray()
+    colors.SetNumberOfComponents(3)
+    colors.SetName("Colors")
+
+    num_points = polydata.GetNumberOfPoints()
+
+    for _ in range(num_points):
+        colors.InsertNextTuple3(
+            int(r * 255),
+            int(g * 255),
+            int(b * 255)
+        )
+
+    polydata.GetPointData().SetScalars(colors)
+
+
 def levantarMallas():
+    import os
+    import vtk
+
+    global mallas, transductor
+
     folder_path = "api/stl-files"
     stl_files = [f for f in os.listdir(folder_path) if f.endswith('.stl')]
 
@@ -349,23 +373,35 @@ def levantarMallas():
         print("No STL files found in the directory.")
         return
 
+    mallas.clear()
+    transductor.clear()
+
     for stl_file in stl_files:
         reader = vtk.vtkSTLReader()
         reader.SetFileName(os.path.join(folder_path, stl_file))
         reader.Update()
-        if stl_file.startswith("transductor"):
-            transductor.append(reader.GetOutput())
-        else:
-            mallas.append(reader.GetOutput())
 
-        # Asignar color segn el nombre del archivo
+        polydata = reader.GetOutput()
+
+        # -----------------------------
+        # Asignar color según nombre
+        # -----------------------------
         name = os.path.splitext(stl_file)[0].lower()
-        assigned_color = (1.0, 1.0, 1.0)  # Color por defecto (blanco)
+        assigned_color = (0.3, 0.3, 0.3)  # gris por defecto
+
         for keyword, color in mesh_colors.items():
-            if keyword in name:
+            if keyword.lower() in name:
+                print(f"Asignando color {color} a {stl_file} porque contiene '{keyword}'")
                 assigned_color = color
                 break
-        mallas_colors.append(assigned_color)
+
+        # -----------------------------
+        # Guardamos malla + color juntos
+        # -----------------------------
+        if stl_file.lower().startswith("transductor"):
+            transductor.append((polydata, assigned_color))
+        else:
+            mallas.append((polydata, assigned_color))
 
     return
 
@@ -420,7 +456,7 @@ def vtk_visualization(request, normal=normal_global):
         levantarMallas()
     print("normal en vtk_visualization:", normal)
     # Agregar las mallas existentes
-    for malla in mallas:        
+    for malla, color in mallas:        
         filled_slice = slice_and_fill_mesh_vtk(
             malla, 
             origin=[0, 0, 0], 
@@ -589,7 +625,7 @@ def mallaDelFOV(request):
 
     if not mallas:
         levantarMallas()
-    for malla in mallas:
+    for malla, color in mallas:
         liver_mesh = malla
         mapper = vtk.vtkPolyDataMapper()
         mapper.SetInputData(liver_mesh)
@@ -597,6 +633,7 @@ def mallaDelFOV(request):
         actor = vtk.vtkActor()
         actor.SetMapper(mapper)
         actor.GetProperty().SetOpacity(0.1)
+        actor.GetProperty().SetColor(color)
         
         renderer.AddActor(actor)
     
@@ -743,8 +780,7 @@ def rotation_to_normal(pitch_deg, yaw_deg, roll_deg):
     rotated_normal /= np.linalg.norm(rotated_normal)
     return rotated_normal.tolist()
 
-def vtk_visualization_image(request, mov):
-    data = json.loads(request)
+def vtk_visualization_image(mov):
 
     # --- Obtener la rotación actual del transductor ---
     pos, rot = mov.get_current_position(), mov.get_current_orientation()
@@ -788,7 +824,7 @@ def vtk_visualization_image(request, mov):
         levantarMallas()
 
     filled_slices = []
-    for malla in mallas:
+    for malla, color in mallas:
         filled_slice = slice_and_fill_mesh_vtk(
             malla,
             origin=origin,
@@ -1206,7 +1242,7 @@ def vtk_visualization_with_mov(request, normal=normal_global):
         levantarMallas()
 
     # Agregar las mallas existentes
-    for malla in mallas:
+    for malla, color in mallas:
         filled_slice = slice_and_fill_mesh_vtk(
             malla,
             origin=[0, 0, -0.02],
@@ -1310,3 +1346,483 @@ def color(request):
 
     # Guardar la imagen modificada
     img.save("C:/Users/Juli/Desktop/pickleada.png")
+
+import math
+import base64
+import io
+import numpy as np
+from PIL import Image
+import vtk
+from vtk.util import numpy_support
+def vtk_visualization_images(mov_module, image_rotation_deg=0):
+
+    import math
+    import numpy as np
+    import vtk
+    from vtk.util import numpy_support
+
+    global mallas
+
+    if not mallas:
+        levantarMallas()
+
+    # -------------------------------------------------
+    # Obtener controlador
+    # -------------------------------------------------
+    controller = mov_module._controller
+    if controller is None:
+        mov_module.init_controller()
+        controller = mov_module._controller
+
+    pos = controller.calculate_position()
+    rot = controller.calculate_orientation()
+
+    pos_np = np.array(pos)
+
+    # Centro proyectado al mismo nivel Y
+    center_proj = np.array([
+        controller.center_x,
+        pos_np[1],  # ← misma altura actual
+        controller.center_z
+    ])
+
+    forward = center_proj - pos_np
+    forward = forward / np.linalg.norm(forward)
+
+    world_up = np.array([0, 1, 0])
+    if abs(np.dot(forward, world_up)) > 0.99:
+        world_up = np.array([0, 0, 1])
+
+    right = np.cross(forward, world_up)
+    right = right / np.linalg.norm(right)
+
+    up = np.cross(right, forward)
+    up = up / np.linalg.norm(up)
+
+    # -------------------------------------------------
+    # Rotaciones locales
+    # -------------------------------------------------
+    pitch = controller.local_pitch
+    yaw   = controller.local_yaw
+    roll  = controller.local_roll
+
+    def rot_x(a):
+        return np.array([
+            [1, 0, 0],
+            [0, np.cos(a), -np.sin(a)],
+            [0, np.sin(a),  np.cos(a)]
+        ])
+
+    def rot_y(a):
+        return np.array([
+            [ np.cos(a), 0, np.sin(a)],
+            [0, 1, 0],
+            [-np.sin(a), 0, np.cos(a)]
+        ])
+
+    def rot_z(a):
+        return np.array([
+            [np.cos(a), -np.sin(a), 0],
+            [np.sin(a),  np.cos(a), 0],
+            [0, 0, 1]
+        ])
+
+    R = rot_z(roll) @ rot_y(yaw) @ rot_x(pitch)
+
+    forward = R @ forward
+    up      = R @ up
+
+    # -------------------------------------------------
+    # Plano de corte
+    # -------------------------------------------------
+    plane = vtk.vtkPlane()
+    plane.SetOrigin(pos)
+    plane.SetNormal(up.tolist())
+
+    # -------------------------------------------------
+    # Renderer
+    # -------------------------------------------------
+    ren = vtk.vtkRenderer()
+    ren.SetBackground(0, 0, 0)
+
+    actores_creados = 0
+
+    for polydata, color in mallas:
+
+        clipper = vtk.vtkClipPolyData()
+        clipper.SetInputData(polydata)
+        clipper.SetClipFunction(plane)
+        clipper.Update()
+
+        filled_poly = clipper.GetOutput()
+
+        if filled_poly.GetNumberOfCells() == 0:
+            continue
+
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputData(filled_poly)
+        mapper.ScalarVisibilityOff()
+
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetColor(color)
+        actor.GetProperty().SetLighting(False)
+
+        ren.AddActor(actor)
+        actores_creados += 1
+
+    if actores_creados == 0:
+        img = np.zeros((300, 300, 3), dtype=np.uint8)
+        return img, pos, rot
+
+    # -------------------------------------------------
+    # Bounds combinados
+    # -------------------------------------------------
+    append_all = vtk.vtkAppendPolyData()
+
+    actors = ren.GetActors()
+    actors.InitTraversal()
+
+    for _ in range(actors.GetNumberOfItems()):
+        actor = actors.GetNextActor()
+        poly = actor.GetMapper().GetInput()
+        append_all.AddInputData(poly)
+
+    append_all.Update()
+    combined = append_all.GetOutput()
+    bounds = combined.GetBounds()
+
+    dx_b = bounds[1] - bounds[0]
+    dy_b = bounds[3] - bounds[2]
+    dz_b = bounds[5] - bounds[4]
+
+    diagonal = math.sqrt(dx_b*dx_b + dy_b*dy_b + dz_b*dz_b)
+    if diagonal < 1e-6:
+        diagonal = 1.0
+
+    # -------------------------------------------------
+    # Cámara
+    # -------------------------------------------------
+    renWin = vtk.vtkRenderWindow()
+    renWin.SetOffScreenRendering(1)
+    renWin.AddRenderer(ren)
+    renWin.SetSize(300, 300)
+
+    camera = ren.GetActiveCamera()
+
+    cam_distance = diagonal * 2.0
+    cam_pos = pos_np - up * cam_distance
+
+    camera.SetPosition(cam_pos.tolist())
+    camera.SetFocalPoint(pos)
+    camera.SetViewUp(forward.tolist())
+
+    camera.SetParallelProjection(True)
+
+    scale = max(dx_b, dy_b) * 0.6
+    if scale < 1e-3:
+        scale = 0.5
+
+    camera.SetParallelScale(scale)
+
+    ren.ResetCameraClippingRange()
+    renWin.Render()
+
+    # -------------------------------------------------
+    # Capturar imagen
+    # -------------------------------------------------
+    w2if = vtk.vtkWindowToImageFilter()
+    w2if.SetInput(renWin)
+    w2if.SetInputBufferTypeToRGB()
+    w2if.ReadFrontBufferOff()
+    w2if.Update()
+
+    vtk_image = w2if.GetOutput()
+    dims = vtk_image.GetDimensions()
+
+    vtk_array = vtk_image.GetPointData().GetScalars()
+    np_array = numpy_support.vtk_to_numpy(vtk_array)
+
+    img = np_array.reshape(dims[1], dims[0], 3)
+    img = np.flipud(img)
+
+    return img.astype(np.uint8), pos, rot
+
+import numpy as np
+import vtk
+import numpy as np
+import vtk
+import numpy as np
+import vtk
+
+def visualize_cutting_plane(mov_module, plane_size=None):
+    """
+    Muestra en una ventana 3D de VTK las mallas cargadas, el plano de corte,
+    y una representación del transductor (esfera + flecha de dirección).
+    """
+    # -------------------------------------------------
+    # Asegurar que las mallas están cargadas
+    # -------------------------------------------------
+    global mallas
+    if not mallas:
+        levantarMallas()
+
+    # -------------------------------------------------
+    # Obtener controlador, posición y orientación
+    # -------------------------------------------------
+    controller = mov_module._controller
+    if controller is None:
+        mov_module.init_controller()
+        controller = mov_module._controller
+
+    pos = controller.calculate_position()
+    pos_np = np.array(pos)
+
+    # Centro proyectado al mismo Y actual (modo cilindro vertical)
+    center_proj = np.array([
+        controller.center_x,
+        pos_np[1],  # misma altura actual
+        controller.center_z
+    ])
+
+    forward0 = center_proj - pos_np
+    forward0 = forward0 / np.linalg.norm(forward0)
+
+    world_up = np.array([0, 1, 0])
+    if abs(np.dot(forward0, world_up)) > 0.99:
+        world_up = np.array([0, 0, 1])
+
+    right0 = np.cross(forward0, world_up)
+    right0 = right0 / np.linalg.norm(right0)
+
+    up0 = np.cross(right0, forward0)
+    up0 = up0 / np.linalg.norm(up0)
+
+    # -------------------------------------------------
+    # Rotaciones locales (pitch, yaw, roll)
+    # -------------------------------------------------
+    pitch = controller.local_pitch
+    yaw   = controller.local_yaw
+    roll  = controller.local_roll
+
+    def rot_x(a):
+        return np.array([
+            [1, 0, 0],
+            [0, np.cos(a), -np.sin(a)],
+            [0, np.sin(a),  np.cos(a)]
+        ])
+
+    def rot_y(a):
+        return np.array([
+            [ np.cos(a), 0, np.sin(a)],
+            [0, 1, 0],
+            [-np.sin(a), 0, np.cos(a)]
+        ])
+
+    def rot_z(a):
+        return np.array([
+            [np.cos(a), -np.sin(a), 0],
+            [np.sin(a),  np.cos(a), 0],
+            [0, 0, 1]
+        ])
+
+    R = rot_z(roll) @ rot_y(yaw) @ rot_x(pitch)
+
+    # Aplicar rotaciones a los tres vectores base
+    forward = R @ forward0
+    right   = R @ right0
+    up      = R @ up0
+
+    # -------------------------------------------------
+    # Crear renderer
+    # -------------------------------------------------
+    ren = vtk.vtkRenderer()
+    ren.SetBackground(0.1, 0.2, 0.4)
+
+    # Añadir las mallas con un poco de transparencia
+    for polydata, color in mallas:
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputData(polydata)
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetColor(color)
+        actor.GetProperty().SetOpacity(0.7)
+        ren.AddActor(actor)
+
+    # -------------------------------------------------
+    # Calcular la diagonal combinada de las mallas
+    # -------------------------------------------------
+    append_all = vtk.vtkAppendPolyData()
+    for polydata, _ in mallas:
+        append_all.AddInputData(polydata)
+    append_all.Update()
+    combined = append_all.GetOutput()
+    bounds = combined.GetBounds()
+    if bounds[1] < bounds[0]:  # no hay mallas
+        diagonal = 10.0
+    else:
+        dx = bounds[1] - bounds[0]
+        dy = bounds[3] - bounds[2]
+        dz = bounds[5] - bounds[4]
+        diagonal = np.sqrt(dx*dx + dy*dy + dz*dz)
+        if diagonal < 1e-6:
+            diagonal = 10.0
+
+    if plane_size is None:
+        plane_size = diagonal * 0.8
+
+    # -------------------------------------------------
+    # Construir el plano (cuadrado) centrado en 'pos' con orientación final
+    # -------------------------------------------------
+    plane_source = vtk.vtkPlaneSource()
+    plane_source.SetOrigin(-0.5, -0.5, 0.0)
+    plane_source.SetPoint1( 0.5, -0.5, 0.0)
+    plane_source.SetPoint2(-0.5,  0.5, 0.0)
+
+    # Matriz de transformación: alinea X con right, Y con forward, Z con up
+    rot_matrix = np.column_stack((right, forward, up))
+
+    transform = vtk.vtkTransform()
+    transform.Translate(pos)
+    m = vtk.vtkMatrix4x4()
+    for i in range(3):
+        for j in range(3):
+            m.SetElement(i, j, rot_matrix[i, j])
+    transform.SetMatrix(m)
+    transform.Scale(plane_size, plane_size, 1.0)
+
+    transform_filter = vtk.vtkTransformPolyDataFilter()
+    transform_filter.SetInputConnection(plane_source.GetOutputPort())
+    transform_filter.SetTransform(transform)
+    transform_filter.Update()
+
+    plane_polydata = transform_filter.GetOutput()
+
+    mapper_plane = vtk.vtkPolyDataMapper()
+    mapper_plane.SetInputData(plane_polydata)
+    plane_actor = vtk.vtkActor()
+    plane_actor.SetMapper(mapper_plane)
+    plane_actor.GetProperty().SetColor(1, 1, 0)       # amarillo
+    plane_actor.GetProperty().SetOpacity(0.5)
+    plane_actor.GetProperty().SetLighting(False)
+    ren.AddActor(plane_actor)
+
+    # -------------------------------------------------
+    # Flecha indicando la normal (up) - opcional, pero la dejamos
+    # -------------------------------------------------
+    arrow_source = vtk.vtkArrowSource()
+    arrow_source.SetTipResolution(6)
+    arrow_source.SetShaftResolution(6)
+
+    arrow_transform = vtk.vtkTransform()
+    arrow_transform.Translate(pos)
+
+    x_axis = np.array([1, 0, 0])
+    if not np.allclose(up, x_axis):
+        v = np.cross(x_axis, up)
+        v_norm = np.linalg.norm(v)
+        if v_norm > 1e-6:
+            v = v / v_norm
+            angle = np.arccos(np.clip(np.dot(x_axis, up), -1, 1)) * 180 / np.pi
+            arrow_transform.RotateWXYZ(angle, v[0], v[1], v[2])
+
+    arrow_transform.Scale(0.2 * plane_size, 0.2 * plane_size, 0.2 * plane_size)
+
+    arrow_filter = vtk.vtkTransformPolyDataFilter()
+    arrow_filter.SetInputConnection(arrow_source.GetOutputPort())
+    arrow_filter.SetTransform(arrow_transform)
+    arrow_filter.Update()
+
+    mapper_arrow = vtk.vtkPolyDataMapper()
+    mapper_arrow.SetInputData(arrow_filter.GetOutput())
+    arrow_actor = vtk.vtkActor()
+    arrow_actor.SetMapper(mapper_arrow)
+    arrow_actor.GetProperty().SetColor(1, 1, 0)   # amarillo
+    arrow_actor.GetProperty().SetOpacity(0.3)
+    arrow_actor.GetProperty().SetLighting(False)
+    ren.AddActor(arrow_actor)
+
+    # -------------------------------------------------
+    # REPRESENTACIÓN DEL TRANSDUCTOR (esfera + flecha de dirección forward)
+    # -------------------------------------------------
+    # Esfera en la posición actual
+    sphere_source = vtk.vtkSphereSource()
+    sphere_source.SetRadius(0.1 * plane_size)  # tamaño relativo
+    sphere_source.SetThetaResolution(16)
+    sphere_source.SetPhiResolution(16)
+
+    sphere_mapper = vtk.vtkPolyDataMapper()
+    sphere_mapper.SetInputConnection(sphere_source.GetOutputPort())
+
+    sphere_actor = vtk.vtkActor()
+    sphere_actor.SetMapper(sphere_mapper)
+    sphere_actor.SetPosition(pos)
+    sphere_actor.GetProperty().SetColor(1, 0, 0)  # rojo
+    sphere_actor.GetProperty().SetOpacity(0.4)
+    sphere_actor.GetProperty().SetLighting(False)
+    ren.AddActor(sphere_actor)
+
+    # Flecha que indica la dirección forward (hacia donde apunta el transductor)
+    # Creamos una flecha (vtkArrowSource) y la orientamos según forward
+    arrow_forward_source = vtk.vtkArrowSource()
+    arrow_forward_source.SetTipResolution(6)
+    arrow_forward_source.SetShaftResolution(6)
+
+    # Transformación para la flecha: origen en pos, dirección = forward, longitud = plane_size * 0.5
+    arrow_forward_transform = vtk.vtkTransform()
+    arrow_forward_transform.Translate(pos)
+
+    # Orientar el eje X de la flecha (por defecto) hacia forward
+    if not np.allclose(forward, x_axis):
+        v = np.cross(x_axis, forward)
+        v_norm = np.linalg.norm(v)
+        if v_norm > 1e-6:
+            v = v / v_norm
+            angle = np.arccos(np.clip(np.dot(x_axis, forward), -1, 1)) * 180 / np.pi
+            arrow_forward_transform.RotateWXYZ(angle, v[0], v[1], v[2])
+
+    # Escalamos para que tenga una longitud adecuada (la flecha original tiene longitud 1, el cono ocupa ~0.35)
+    arrow_forward_transform.Scale(plane_size * 0.5, plane_size * 0.1, plane_size * 0.1)
+
+    arrow_forward_filter = vtk.vtkTransformPolyDataFilter()
+    arrow_forward_filter.SetInputConnection(arrow_forward_source.GetOutputPort())
+    arrow_forward_filter.SetTransform(arrow_forward_transform)
+    arrow_forward_filter.Update()
+
+    mapper_forward_arrow = vtk.vtkPolyDataMapper()
+    mapper_forward_arrow.SetInputData(arrow_forward_filter.GetOutput())
+
+    forward_arrow_actor = vtk.vtkActor()
+    forward_arrow_actor.SetMapper(mapper_forward_arrow)
+    forward_arrow_actor.GetProperty().SetColor(1, 1, 0)  # amarillo para distinguir
+    forward_arrow_actor.GetProperty().SetLighting(False)
+    ren.AddActor(forward_arrow_actor)
+
+    # -------------------------------------------------
+    # (Opcional) Ejes de referencia - los quitamos para no saturar
+    # -------------------------------------------------
+    # axes = vtk.vtkAxesActor()
+    # axes.SetTotalLength(0.5*diagonal, 0.5*diagonal, 0.5*diagonal)
+    # axes.SetShaftTypeToCylinder()
+    # axes.SetCylinderRadius(0.02)
+    # axes.SetTipTypeToCone()
+    # axes.SetConeRadius(0.1)
+    # axes.AxisLabelsOff()
+    # ren.AddActor(axes)
+
+    # -------------------------------------------------
+    # Renderizador e interactor
+    # -------------------------------------------------
+    renWin = vtk.vtkRenderWindow()
+    renWin.AddRenderer(ren)
+    renWin.SetSize(800, 600)
+    renWin.SetWindowName("Plano de corte - Visualización 3D (con transductor)")
+
+    iren = vtk.vtkRenderWindowInteractor()
+    iren.SetRenderWindow(renWin)
+    style = vtk.vtkInteractorStyleTrackballCamera()
+    iren.SetInteractorStyle(style)
+
+    ren.ResetCamera()
+    renWin.Render()
+    iren.Start()

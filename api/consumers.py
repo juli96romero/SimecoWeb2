@@ -84,7 +84,7 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
             data = json.loads(text_data)
             print("Received data:", data.get('action'))  # Log the first 100 characters of the received data
             parse_time = time.time() - parse_start
-            logging.info(f"Parse time: {parse_time*1000:.2f}ms")
+            #logging.info(f"Parse time: {parse_time*1000:.2f}ms")
 
             # Extraccin de datos
             extract_start = time.time()
@@ -96,7 +96,7 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
                 brightness_key = f'brightness{i}' if i > 0 else 'brightness'
                 self.brillo[i] = int(data.get(brightness_key, 0))
             extract_time = time.time() - extract_start
-            logging.info(f"Data extraction time: {extract_time*1000:.2f}ms")
+            #logging.info(f"Data extraction time: {extract_time*1000:.2f}ms")
 
             # Movimiento del transductor
             move_time = 0
@@ -115,18 +115,25 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
                 elif data["action"] == "rotate":
                     nueva_rotacion = mov.rotate_transducer(self.direction)
                 move_time = time.time() - move_start
-                logging.info(f"Move time: {move_time*1000:.2f}ms")
+                #logging.info(f"Move time: {move_time*1000:.2f}ms")
             print("sales del elseif")
+
+
             # Procesamiento VTK (potencialmente lento)
             vtk_time = 0
             if not self.direction:  # Solo procesar VTK si no hay movimiento
                 vtk_start = time.time()
-                imagen_recorte_vtk, pos, rot = views.vtk_visualization_image(text_data,mov)
+                # Sin ajustes
+                imagen_recorte_vtk, pos, rot = views.vtk_visualization_images(mov, image_rotation_deg=90)
+                #views.visualize_cutting_plane(mov)
+                print("imagen recorte vtk desde views:", imagen_recorte_vtk.shape if imagen_recorte_vtk is not None else None)
                 print("pos y rot desde views:", pos, rot)
                 vtk_time = time.time() - vtk_start
-                logging.info(f"VTK processing time: {vtk_time*1000:.2f}ms")
+                #logging.info(f"VTK processing time: {vtk_time*1000:.2f}ms")
             else:
                 imagen_recorte_vtk = None
+
+            #views.debug_vtk_plane_3d(mov)
 
             # Inferencia de red neuronal (MUY lento)
             inference_time = 0
@@ -134,7 +141,7 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
                 inference_start = time.time()
                 image_data = model.hacerInferencia(img_generada=imagen_recorte_vtk)
                 inference_time = time.time() - inference_start
-                logging.info(f"Inference time: {inference_time*1000:.2f}ms")
+                #logging.info(f"Inference time: {inference_time*1000:.2f}ms")
             else:
                 image_data = None
 
@@ -148,19 +155,19 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
                 brightness_start = time.time()
                 imagen_brillo_ajustado = ajustar_brillo_con_franjas(image_data, self.brillo)
                 brightness_time = time.time() - brightness_start
-                logging.info(f"  Brightness adjustment: {brightness_time*1000:.2f}ms")
+                #logging.info(f"  Brightness adjustment: {brightness_time*1000:.2f}ms")
 
                 # Paso 2: Acomodar FOV
                 fov_start = time.time()
                 image_fov = acomodarFOV_ultra_rapido(imagen_brillo_ajustado)
                 fov_time = time.time() - fov_start
-                logging.info(f"  FOV processing: {fov_time*1000:.2f}ms")
+                #logging.info(f"  FOV processing: {fov_time*1000:.2f}ms")
 
                 # Paso 3: Formatear a bitstream
                 bitstream_start = time.time()
                 image_base64 = bitstream_optimizer.formatAsBitStream_optimized(image_fov)
                 bitstream_time = time.time() - bitstream_start
-                logging.info(f"  Bitstream conversion: {bitstream_time*1000:.2f}ms")
+                #logging.info(f"  Bitstream conversion: {bitstream_time*1000:.2f}ms")
 
                 process_time = time.time() - process_start
 
@@ -169,11 +176,10 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
             self._total_processing_time += total_time
             
             # Log del rendimiento
-            logging.info(f"TOTAL REQUEST TIME: {total_time*1000:.2f}ms")
-            logging.info(f"Average processing time: {self._total_processing_time/self._total_requests*1000:.2f}ms")
-            logging.info(f"Estimated FPS: {1/total_time if total_time > 0 else 0:.1f}")
-            logging.info("-" * 50)
-
+            #logging.info(f"TOTAL REQUEST TIME: {total_time*1000:.2f}ms")
+            #logging.info(f"Average processing time: {self._total_processing_time/self._total_requests*1000:.2f}ms")
+            #logging.info(f"Estimated FPS: {1/total_time if total_time > 0 else 0:.1f}")
+            #logging.info("-" * 50)
             # Enviar respuesta
             response_data = {
                 "image_data": image_base64,

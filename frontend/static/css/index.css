@@ -108,6 +108,29 @@ body, html {
 .rotation-row button:hover {
   background-color: #34495e;
 }
+/* ===== BORRAR ESTO CUANDO SAQUEMOS LA IMGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG===== */
+.eco-viewport {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.eco-frame {
+  flex: 2;
+}
+
+.eco-secondary {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.eco-secondary img {
+  max-width: 100%;
+  height: auto;
+}
+/* ===== VHASTA ACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA===== */
 .eco-viewport {
   width: 100%;
   height: 100%;
@@ -127,12 +150,14 @@ body, html {
 }
 
 .half-screen-right {
-  width: 35%; /* 25% of the width */
+  width: 35%;
   display: flex;
   flex-direction: column;
   background-color: #1f2a33;
   border-left: 1px solid rgba(255,255,255,0.05);
-  padding: 10px; /* Add some padding */
+  padding: 10px;
+  height: 100vh;
+  overflow: hidden; /* 🔑 importante */
 }
 
 .button-container {
@@ -170,7 +195,8 @@ body, html {
 
 .vtk-container {
   width: 100%;
-  height: 100%;
+  flex: 1;              /* 🔑 ocupa el espacio disponible */
+  min-height: 250px;    /* opcional, evita que se aplaste */
   position: relative;
 }
 
@@ -183,7 +209,28 @@ body, html {
   flex-shrink: 0; /* Prevent shrinking */
   display: flex;
   gap: 15px; /* Space between columns */
+  max-height: 45vh;     /* 🔑 no se va de pantalla */
+  overflow-y: auto; 
 }
+
+.controls-section {
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+.slider-container {
+  gap: 4px;
+}
+
+label {
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+
+input[type="range"] {
+  height: 3px;
+}
+
 
 .controls-section {
   background-color: rgba(255, 255, 255, 0.04);

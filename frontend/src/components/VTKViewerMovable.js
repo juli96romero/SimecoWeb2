@@ -65,8 +65,16 @@ const VTKViewerMovable = ({
 
         const renderer = fullScreenRenderer.getRenderer();
         const renderWindow = fullScreenRenderer.getRenderWindow();
-        const interactor = renderWindow.getInteractor();
+        const camera = renderer.getActiveCamera(); // <--- Obtenemos la cámara
 
+        // --- CONFIGURACIÓN DE POSICIÓN INICIAL ---
+        // Usando tus valores de la prueba 2 (redondeados para limpieza)
+        camera.setPosition(-0.21, -0.22, -4.1);
+        camera.setFocalPoint(0, 0, 0);
+        camera.setViewUp(0, -1, 0); // El -1 en Y indica que tu escena está "invertida" respecto al estándar vtk
+        
+        const interactor = renderWindow.getInteractor();
+        window.myCamera = renderer.getActiveCamera();
         context.current = { 
           fullScreenRenderer, 
           renderWindow, 
@@ -112,13 +120,16 @@ const VTKViewerMovable = ({
               // Identificar actores clave
               if (name.includes("skin")) {
                 skinRef.current = actor;
-                actor.getProperty().setOpacity(0.3); // Hacer skin semitransparente
+                actor.getProperty().setOpacity(0.7); // Hacer skin semitransparente
                 console.log("Skin identificado:", file);
               }
               if (name.includes("transductor")) {
                 transductorRef.current = actor;
                 // Destacar el transductor
                 actor.getProperty().setColor(1, 0, 0); // Rojo
+                actor.setPosition(0, 0, -0.85);
+                console.log("rotation:", actor.getOrientation());
+                actor.setOrientation(0.0, 180, 0.0);
                 console.log("Transductor identificado:", file);
                 
                 // Notificar posición inicial

@@ -228,8 +228,9 @@ const TryVTK = () => {
         <div className="eco-frame">
           <ImageDisplay imageData={imageData} />
         </div>
+
         {showImage2 && imageData2 && (
-          <div className="eco-overlay">
+          <div className="eco-secondary">
             <ImageDisplay imageData={imageData2} />
           </div>
         )}

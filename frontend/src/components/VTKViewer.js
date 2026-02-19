@@ -85,6 +85,21 @@ const VTKViewer = ({ containerRef, onSpecialActorPositionChange, onSpecialActorR
         });
 
         const renderer = fullScreenRenderer.getRenderer();
+        const camera = renderer.getActiveCamera();
+
+        // 1. Definir la posición (X, Y, Z)
+        camera.setPosition(1, 1, 1); 
+
+        // 2. Definir hacia dónde mira (X, Y, Z)
+        camera.setFocalPoint(0, 0, 0); 
+
+        // 3. Definir qué eje es "arriba" (usualmente Z es [0,0,1] o Y es [0,1,0])
+        camera.setViewUp(0, 0, 1); 
+
+        // IMPORTANTE: Si usas renderer.resetCamera() después de esto, 
+        // vtk anulará tu posición manual para encuadrar todo. 
+        // Llama a resetCamera() SOLO si quieres que vtk calcule la distancia automáticamente.
+        renderer.resetCamera();
         const renderWindow = fullScreenRenderer.getRenderWindow();
 
         context.current = {
