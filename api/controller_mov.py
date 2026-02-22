@@ -70,19 +70,15 @@ class EllipsoidMovementController:
         self.local_roll = 0.0
 
         self.delta_angle = 0.02
-        self.delta_local = 0.05
-
-    # -------------------------
-    # MOVIMIENTO ORBITAL
-    # -------------------------
+        self.delta_local = 0.02
 
     def move(self, direction):
 
         if direction == "left":
-            self.phi += self.delta_angle
+            self.phi -= self.delta_angle
 
         elif direction == "right":
-            self.phi -= self.delta_angle
+            self.phi += self.delta_angle
 
         elif direction == "up":
             self.y_offset -= self.delta_angle * self.y_radius
@@ -95,9 +91,6 @@ class EllipsoidMovementController:
 
         return self.calculate_position()
 
-    # -------------------------
-    # ROTACIÓN LOCAL
-    # -------------------------
 
     def rotate_in_place(self, direction):
 
@@ -127,9 +120,6 @@ class EllipsoidMovementController:
             "rotation": self.calculate_orientation()
         }
 
-    # -------------------------
-    # POSICIÓN EN EL ELIPSOIDE
-    # -------------------------
 
     def calculate_position(self):
 
@@ -142,9 +132,6 @@ class EllipsoidMovementController:
 
         return (x, y, z)
 
-    # -------------------------
-    # ORIENTACIÓN (APUNTA AL CENTRO)
-    # -------------------------
 
     def calculate_orientation(self):
 
@@ -170,10 +157,6 @@ class EllipsoidMovementController:
             math.degrees(yaw),
             math.degrees(roll)
         )
-
-    # -------------------------
-    # RESET
-    # -------------------------
 
     def reset_position(self):
 

@@ -96,6 +96,7 @@ const VTKViewerMovable = ({
           reader
             .setUrl(`/static/${file}`)
             .then(() => {
+              console.log("Nombre recibido:", file);
               const source = reader.getOutputData(0);
               const mapper = vtkMapper.newInstance();
               mapper.setInputData(source);

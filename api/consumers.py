@@ -165,6 +165,7 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
 
                 # Formatear a bitstream
                 bitstream_start = time.time()
+                #image_base64 = bitstream_optimizer.formatAsBitStream_optimized(image_fov[::-1]) # Flipped
                 image_base64 = bitstream_optimizer.formatAsBitStream_optimized(image_fov)
                 bitstream_time = time.time() - bitstream_start
                 logging.info(f"  Bitstream conversion: {bitstream_time*1000:.2f}ms")

@@ -97,13 +97,11 @@ class FastVtkVisualizer:
             controller = mov_module._controller
 
 
-        rand_pos = (random.uniform(-0.005, 0.005), random.uniform(-0.005, 0.005), random.uniform(-0.005, 0.005))
-        rand_rot = (random.uniform(-0.005, 0.005), random.uniform(-0.005, 0.005), random.uniform(-0.005, 0.005))
+        rand_pos = (random.choice([-0.002,-0.001, 0, 0.001, 0.002]), random.choice([-0.002,-0.001, 0, 0.001, 0.002]), random.choice([-0.002,-0.001, 0, 0.001, 0.002]))
         pos = controller.calculate_position()
         rot = controller.calculate_orientation()
 
         pos = (pos[0] + rand_pos[0], pos[1] + rand_pos[1], pos[2] + rand_pos[2])
-        #rot = (rot[0] + rand_rot[0], rot[1] + rand_rot[1], rot[2] + rand_rot[2])
 
         pos_np = _np.array(pos)
 

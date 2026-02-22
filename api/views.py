@@ -294,6 +294,9 @@ def levantarMallas():
     transductor.clear()
 
     for stl_file in stl_files:
+        if "skin" in stl_file.lower():
+            print(f"Saltando {stl_file} porque contiene 'skin'")
+            continue
         reader = vtk.vtkSTLReader()
         reader.SetFileName(os.path.join(folder_path, stl_file))
         reader.Update()
