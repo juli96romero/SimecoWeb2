@@ -108,29 +108,35 @@ body, html {
 .rotation-row button:hover {
   background-color: #34495e;
 }
-/* ===== BORRAR ESTO CUANDO SAQUEMOS LA IMGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG===== */
 .eco-viewport {
+  width: 100%;
+  height: 100%;
   display: flex;
-  gap: 20px;
   align-items: center;
+  transition: all 0.4s ease;
 }
 
+/* Cuando NO hay imagen base */
+.eco-viewport.centered {
+  justify-content: center;
+}
+
+/* Cuando SÍ hay imagen base */
+.eco-viewport.split {
+  justify-content: space-evenly;
+}
+
+/* Ecografía */
 .eco-frame {
-  flex: 2;
+  transition: all 0.4s ease;
 }
 
-.eco-secondary {
-  flex: 1;
+/* Imagen base */
+.eco-overlay {
   display: flex;
   justify-content: center;
   align-items: center;
 }
-
-.eco-secondary img {
-  max-width: 100%;
-  height: auto;
-}
-/* ===== VHASTA ACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA===== */
 .eco-viewport {
   width: 100%;
   height: 100%;

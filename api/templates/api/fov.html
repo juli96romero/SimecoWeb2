@@ -68,8 +68,6 @@
                 // Actualizar la fuente de la imagen con la cadena base64 recibida
                 document.getElementById("receivedImage").src = 'data:image/png;base64,' + data.image_data;
                 document.getElementById("receivedImage").style.display = "block"; // Mostrar la imagen
-                if(buttonState)
-                    sendMessage();
             } else {
                 console.error("Received empty or undefined image_data");
             }

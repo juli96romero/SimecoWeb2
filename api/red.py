@@ -666,9 +666,6 @@ class Pix2Pix(pl.LightningModule):
             save_image(fake_image, path.join(output_path,filename + '.png')) 
 
 
-
-
-
 def main(request):
     print("Levantando red en memoria con size=128")
 

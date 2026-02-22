@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Control del Transductor</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            text-align: center;
+            padding: 50px;
+        }
+        input[type="number"] {
+            width: 80px;
+            margin: 0 5px;
+            padding: 5px;
+        }
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Control del Transductor</h1>
+
+    <label>Posición (x, y, z):</label><br>
+    <input id="posX" type="number" value="0" step="any">
+    <input id="posY" type="number" value="0" step="any">
+    <input id="posZ" type="number" value="-1" step="any"><br><br>
+
+    <label>Rotación (x, y, z):</label><br>
+    <input id="rotX" type="number" value="0" step="any">
+    <input id="rotY" type="number" value="0" step="any">
+    <input id="rotZ" type="number" value="0" step="any"><br><br>
+
+    <button onclick="enviar()">Actualizar vista VTK</button>
+
+    <script>
+        function enviar() {
+            const pos = [
+                parseFloat(document.getElementById("posX").value),
+                parseFloat(document.getElementById("posY").value),
+                parseFloat(document.getElementById("posZ").value)
+            ];
+            const rot = [
+                parseFloat(document.getElementById("rotX").value),
+                parseFloat(document.getElementById("rotY").value),
+                parseFloat(document.getElementById("rotZ").value)
+            ];
+
+            fetch("/api/mover-transductor/", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ position: pos, rotation: rot })
+            })
+                .then(resp => resp.json())
+                .catch(error => {
+                    alert("Error de conexión: " + error);
+                });
+        }
+    </script>
+</body>
+</html>

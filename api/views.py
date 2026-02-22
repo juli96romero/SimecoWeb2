@@ -1,49 +1,60 @@
 from django.urls import get_resolver, URLPattern, URLResolver
 from django.shortcuts import render
 from django.http import HttpResponse
-from .red import main  # Corrected import statement
 from django.http import JsonResponse
 import os
 import json
-import base64
-from django.conf import settings
 import vtk
 from vtkmodules.util.numpy_support import vtk_to_numpy
-from io import BytesIO
-from PIL import Image
-from os import path
-from torchvision.utils import save_image
 import numpy as np
-from PIL import Image
 import math
 from math import cos, sin, pi
 from django.views.decorators.csrf import csrf_exempt
-from . import debug_transducer_vtk
+from django.urls import get_resolver, URLResolver
+from math import cos, sin, pi
+from vtk.util import numpy_support
 
 mallas_colors = []
 transductor = []
-
-# Variables globales para el estado del transductor
-theta = 0  # ngulo en el plano XY (en radianes)
-phi = 0    # ngulo en el plano XZ (en radianes)
-psi = 0    # ngulo en el plano YZ (en radianes)
-delta_angle = 0.02  # Incremento del ngulo por cada evento de teclado
-delta_angle_psi = 0.05  # Incremento del ngulo psi
-
-# Radios del elipsoide (ajustados segn la malla de la piel)
-x_radius = 10.0
-y_radius = 15.0
-z_radius = 8.0
-
-# Centro del elipsoide
-center_x = 0.0
-center_y = 0.0
-center_z = 0.0
-
 mallas = []
 transductor_polydata = None
-ultima_posicion = [0, 0, 0]
-ultima_rotacion = [0, 0, 0]
+normal_global = [0.3 , 0.3 , 0.99]
+slice_origin = [0, 0, -0.02]
+slice_normal = normal_global
+
+mesh_colors = {
+    'pelvis': (151/255.0, 151/255.0, 147/255.0),      # gris
+    'spleen': (1.0, 0, 1.0),                          # magenta
+    'liver': (100/255.0, 0, 100/255.0),               # violeta oscuro
+    'surrenalgland': (1.0, 1.0, 0),                   # amarillo
+    'kidney': (0, 1.0, 1.0),                          # cian
+    'gallbladder': (0, 1.0, 0),                       # verde
+    'pancreas': (0, 0, 1.0),                          # azul
+    'artery': (0, 0, 1),                              # rojo
+    'bones': (1.0, 1.0, 1.0)                          # blanco
+}
+
+def red128(request): 
+    return render(request, 'api/red128.html')
+
+def red256(request):
+    return render(request, 'api/red256.html')
+
+def vtk_image(request):
+    return render(request, 'api/vtk_image.html')
+
+def interfaz_html(request):
+    levantar_stl()
+    return render(request, 'api/interfaz.html')
+
+def pruebaFOV(request):
+    return render(request, 'api/fov.html')
+
+def vtk_visualizador(request):
+    return render(request, 'api/vtk_visualizador.html')
+
+def vtk_mover(request):
+    return render(request, 'api/vtk_visualizador_mover.html')
 
 def levantar_stl():
     global mallas, transductor_polydata
@@ -63,13 +74,8 @@ def levantar_stl():
         name = os.path.splitext(archivo)[0].lower()
         if "transductor" in name:
             transductor_polydata = polydata
-        else:
-            color = (1, 1, 1)
-            for palabra, c in mesh_colors.items():
-                if palabra in name:
-                    color = c
-                    break
-            mallas.append((polydata, color))
+
+    levantarMallas()
 
 def solo_la_piel(request):
 
@@ -162,77 +168,8 @@ def mover_transductor(request):
             return JsonResponse({"success": False, "error": str(e)})
     return JsonResponse({"success": False, "error": "Mtodo invlido"})
 
-def interfaz_html(request):
-    levantar_stl()
-    return HttpResponse(f"""
-        <html>
-        <head>
-            <title>Control del Transductor</title>
-        </head>
-        <body style="font-family:sans-serif; text-align:center; padding:50px;">
-            <h1>Control del Transductor</h1>
-            <label>Posicin (x, y, z):</label><br>
-            <input id="posX" type="number" value="0"> 
-            <input id="posY" type="number" value="0"> 
-            <input id="posZ" type="number" value="0"><br><br>
-
-            <label>Rotacin (x, y, z):</label><br>
-            <input id="rotX" type="number" value="0"> 
-            <input id="rotY" type="number" value="0"> 
-            <input id="rotZ" type="number" value="0"><br><br>
-
-            <button onclick="enviar()">Actualizar vista VTK</button>
-
-            <script>
-                function enviar() {{
-                    const pos = [
-                        parseFloat(document.getElementById("posX").value),
-                        parseFloat(document.getElementById("posY").value),
-                        parseFloat(document.getElementById("posZ").value)
-                    ];
-                    const rot = [
-                        parseFloat(document.getElementById("rotX").value),
-                        parseFloat(document.getElementById("rotY").value),
-                        parseFloat(document.getElementById("rotZ").value)
-                    ];
-                    fetch("/mover-transductor/", {{
-                        method: "POST",
-                        headers: {{
-                            "Content-Type": "application/json"
-                        }},
-                        body: JSON.stringify({{ position: pos, rotation: rot }})
-                    }}).then(resp => resp.json()).then(data => {{
-                        if (data.success) {{
-                            alert("Ventana actualizada!");
-                        }} else {{
-                            alert("Error: " + data.error);
-                        }}
-                    }});
-                }}
-            </script>
-        </body>
-        </html>
-    """)
-
-mesh_colors = {
-    'pelvis': (151/255.0, 151/255.0, 147/255.0),      # gris
-    'spleen': (1.0, 0, 1.0),                          # magenta
-    'liver': (100/255.0, 0, 100/255.0),               # violeta oscuro
-    'surrenalgland': (0, 1.0, 1.0),                    # cian
-    'kidney': (1.0, 1.0, 0),                          # amarillo
-    'gallbladder': (0, 1.0, 0),                       # verde
-    'pancreas': (0, 0, 1.0),                          # azul
-    'artery': (0, 0, 1),                            # rojo
-    'bones': (1.0, 1.0, 1.0)                          # blanco
-}
-
-normal_global = [0.3 , 0.3 , 0.99]
-slice_origin = [0, 0, -0.02]
-slice_normal = normal_global
-
 #####funcionalidad de htmls:
 def extract_patterns(urlpatterns, base=''):
-    """Recursively extract all named URL patterns"""
     patterns = []
     for pattern in urlpatterns:
         if isinstance(pattern, URLResolver):
@@ -247,15 +184,35 @@ def extract_patterns(urlpatterns, base=''):
 
 def main_page(request):
     resolver = get_resolver()
-    # Encuentra el resolver que corresponde a la aplicacin "api"
     api_resolver = None
     for pattern in resolver.url_patterns:
         if isinstance(pattern, URLResolver) and pattern.pattern._route == '':
             api_resolver = pattern
             break
-
+    # Extrae los patrones (lista de dict con 'name' y 'url')
     urls = extract_patterns(api_resolver.url_patterns) if api_resolver else []
-    
+
+    # Diccionario de descripciones usando los 'name' de cada URL
+    descripciones = {
+        'api_main_page': '',  # Página principal sin descripción
+        'Red 1 con 128x128px': 'Inferencia con imágenes preexistentes de 128x128 píxeles',
+        'Red 2 con 256x256px': 'Inferencia con imágenes preexistentes de 256x256 píxeles',
+        'Visualizador de mallas y recorte': 'Visualización de las mallas en VTK junto con el plano generado',
+        'VTK con colores y transductor': 'Visualización de las mallas con el transductor y los colores en los órganos',
+        'Imagen generada con recorte': 'Generación de imagen a partir del recorte de la malla',
+        'Piel + recorte': 'Generación de imagen que muestra la piel junto con el recorte',
+        'FOV transductor': 'Transformación al campo de visión (FOV) del transductor',
+        'Combinado': 'Generación de imagen combinada con recorte de malla y optimización del FOV. Generado a partir del recorte hecho en VTK',
+        '128px con brillo': 'Endpoint para la red de inferencia con imágenes de 128x128 píxeles y ajuste de brillo (imagenes preexistentes)',
+        'Malla poly': 'Creación de malla poligonal para el volumen de la panza a partir de un modelo elipsoidal',
+        'Malla ParametricSpline': 'Creación de malla poligonal para el volumen de la panza a partir de un modelo spline paramétrico',
+        'Movimiento transductor': 'Endpoint para mover el transductor utilizando un modelo de movimiento elipsoidal',
+        'SimecoWEB': 'Acceso a la interfaz web de Simeco'
+    }
+    # Agregar la descripción a cada elemento de urls
+    for url in urls:
+        url['description'] = descripciones.get(url['name'], 'Descripción no disponible')
+
     return render(request, 'pagina_principal.html', {'urls': urls})
 
 # funcionalidad de SIMECO#############
@@ -276,7 +233,6 @@ def list_stl_files(request):
     response_data = {
         'files': files,
     }
-    print("responsedata", response_data)
     return JsonResponse(response_data, safe=False)
 
 def list_stl_files_transductor(request):
@@ -305,42 +261,6 @@ def convert_vtk_polydata_to_json(polydata):
     
     return data
 
-def move_transducer(action):
-    global theta, phi, psi, delta_angle, delta_angle_psi
-    global center_x, center_y, center_z
-    global x_radius, y_radius, z_radius
-    print("valor actual variables globales:", 
-          f"theta={theta}, phi={phi}, psi={psi}, "
-          f"x_radius={x_radius}, y_radius={y_radius}, z_radius={z_radius}")
-    # Actualizar los ngulos segn la accin
-    if action == 'left':
-        theta -= delta_angle
-    elif action == 'right':
-        theta += delta_angle
-    elif action == 'up':
-        phi += delta_angle
-    elif action == 'down':
-        phi -= delta_angle
-    elif action == 'a':
-        psi -= delta_angle_psi
-    elif action == 'd':
-        psi += delta_angle_psi
-
-    # Asegurarse de que los ngulos estn en el rango [0, 2*pi]
-    theta = theta % (2 * pi)
-    phi = phi % (2 * pi)
-    psi = psi % (2 * pi)
-
-    # Calcular la nueva posicin en la superficie del elipsoide
-    # (using exactly the same formula as in the first function)
-    x = center_x + x_radius * cos(theta) * cos(phi)
-    y = center_y + y_radius * sin(theta) * cos(psi)
-    z = center_z + z_radius * sin(phi) * cos(psi)
-
-    print(f"Posicin del transductor: x={x:.6f}, y={y:.6f}, z={z:.6f}")
-    return (x, y, z)
-
-
 def apply_color_to_polydata(polydata, color):
     r, g, b = color
 
@@ -359,10 +279,7 @@ def apply_color_to_polydata(polydata, color):
 
     polydata.GetPointData().SetScalars(colors)
 
-
 def levantarMallas():
-    import os
-    import vtk
 
     global mallas, transductor
 
@@ -403,7 +320,19 @@ def levantarMallas():
         else:
             mallas.append((polydata, assigned_color))
 
+
+        for keyword, color in mesh_colors.items():
+            if keyword in name:
+                assigned_color = color
+                break
+        mallas_colors.append(assigned_color)
+
     return
+
+def getMallas():
+    if not mallas:
+        levantarMallas()
+    return mallas
 
 def update_visualization(request):
     if request.method == 'POST':
@@ -422,7 +351,6 @@ def update_normal(request):
     normal_global[0] = normal[0]
     normal_global[1] = normal[1]
     normal_global[2] = normal[2]
-    #mallaDelFOV(request)
     return JsonResponse({'success': True})
 
 object_position = [0.9, 0.0, 0.0]  # Initial position
@@ -446,8 +374,7 @@ def update_position(request):
         return JsonResponse({'success': True})
     return JsonResponse({'success': False})
 
-
-def vtk_visualization(request, normal=normal_global):
+def vtk_visualization(request, normal=normal_global):#RV
     # Create a VTK renderer
     renderer = vtk.vtkRenderer()
     
@@ -477,14 +404,6 @@ def vtk_visualization(request, normal=normal_global):
         renderer.AddActor(mesh_actor)
         renderer.AddActor(slice_actor)
     
-    # Configurar transductor
-    transductor_mapper = vtk.vtkPolyDataMapper()
-    transductor_mapper.SetInputData(transductor[0])
-
-    transductor_actor = vtk.vtkActor()
-    transductor_actor.SetMapper(transductor_mapper)
-    transductor_actor.GetProperty().SetOpacity(0.4)
-    transductor_actor.GetProperty().SetColor(1, 0.0, 0.0)
     transform = vtk.vtkTransform()
     transform.PostMultiply()
     transform.RotateX(-90)
@@ -492,13 +411,7 @@ def vtk_visualization(request, normal=normal_global):
     transform.RotateZ(0)
     transform.Translate(0, 0, -1.25)
 
-    # Aplicar transform
-    transductor_actor.SetUserTransform(transform)
-
-    renderer.AddActor(transductor_actor)
-    
-
-    # Configuracin de la ventana de renderizado
+    # Configuracion de la ventana de renderizado
     renderer.SetBackground(1, 1, 1)
     render_window = vtk.vtkRenderWindow()
     render_window.AddRenderer(renderer)
@@ -508,17 +421,12 @@ def vtk_visualization(request, normal=normal_global):
     render_window_interactor = vtk.vtkRenderWindowInteractor()
     render_window_interactor.SetRenderWindow(render_window)
 
-    # Renderizar y empezar la interaccin
+    # Renderizar y empezar la interaccion
     render_window.Render()
     render_window_interactor.Initialize()
     render_window_interactor.Start()
 
     return True
-
-####SLICE AND FILL
-
-
-
 
 ###########fovmesh
 
@@ -619,59 +527,6 @@ def create_fov_mesh(origin, normal, radius, height, angle):
     
     return fov_polydata
 
-def mallaDelFOV(request):
-    # Set up VTK rendering
-    renderer = vtk.vtkRenderer()
-
-    if not mallas:
-        levantarMallas()
-    for malla, color in mallas:
-        liver_mesh = malla
-        mapper = vtk.vtkPolyDataMapper()
-        mapper.SetInputData(liver_mesh)
-
-        actor = vtk.vtkActor()
-        actor.SetMapper(mapper)
-        actor.GetProperty().SetOpacity(0.1)
-        actor.GetProperty().SetColor(color)
-        
-        renderer.AddActor(actor)
-    
-    # Define FOV shape parameters
-    radius = 1
-    height = 0.1
-    angle = math.radians(60)  # Convert degrees to radians
-
-    # Create FOV mask on the same plane as slice origin and normal
-    fov_mesh = create_fov_mesh(slice_origin, slice_normal, radius, height, angle)
-
-    # Mapper and actor for the FOV mesh
-    fov_mapper = vtk.vtkPolyDataMapper()
-    fov_mapper.SetInputData(fov_mesh)
-    fov_actor = vtk.vtkActor()
-    fov_actor.SetMapper(fov_mapper)
-    fov_actor.GetProperty().SetColor(1.0, 0.0, 0.0)  # Set color to red
-    fov_actor.GetProperty().SetOpacity(1)
-    print(fov_actor.GetPosition())
-    fov_actor.SetPosition(0.9,0.0,0.0)
-    renderer.SetBackground(1, 1, 1)
-    renderer.AddActor(fov_actor)
-
-    # Create a render window and interactor
-    render_window = vtk.vtkRenderWindow()
-    render_window.AddRenderer(renderer)
-    render_window_interactor = vtk.vtkRenderWindowInteractor()
-    render_window_interactor.SetRenderWindow(render_window)
-
-    # Render and interact
-    render_window.Render()
-    render_window_interactor.Start()
-    return render(request, 'api/malla.html')
-
-
-
-
-
 
 def slice_and_fill_mesh_vtk(mesh, origin=slice_origin, normal=slice_normal):
     # Create a plane to slice the mesh
@@ -712,8 +567,10 @@ def slice_and_fill_mesh_vtk(mesh, origin=slice_origin, normal=slice_normal):
 renderer = vtk.vtkRenderer()
 render_window = vtk.vtkRenderWindow()
 render_window.AddRenderer(renderer)
+render_window.SetOffScreenRendering(1) 
 render_window_interactor = vtk.vtkRenderWindowInteractor()
 render_window_interactor.SetRenderWindow(render_window)
+
 
 def slice_to_image(filled_slices, mesh_colors):
     # Limpiar el renderer de actores anteriores
@@ -726,7 +583,7 @@ def slice_to_image(filled_slices, mesh_colors):
         actor = vtk.vtkActor()
         actor.SetMapper(mapper)
         
-        # Asignar el color segn el ndice de la malla
+        # Asignar el color según el indice de la malla
         color = mesh_colors[i]
         actor.GetProperty().SetColor(color)
         actor.GetProperty().LightingOff()  
@@ -752,7 +609,7 @@ def slice_to_image(filled_slices, mesh_colors):
 
 
 def rotation_to_normal(pitch_deg, yaw_deg, roll_deg):
-    """Convierte los ángulos de Euler (grados) en un vector normal 3D"""
+    #Convierte los ángulos de Euler (grados) en un vector normal 3D
     pitch = np.radians(pitch_deg)
     yaw = np.radians(yaw_deg)
     roll = np.radians(roll_deg)
@@ -780,85 +637,32 @@ def rotation_to_normal(pitch_deg, yaw_deg, roll_deg):
     rotated_normal /= np.linalg.norm(rotated_normal)
     return rotated_normal.tolist()
 
-def vtk_visualization_image(mov):
-
-    # --- Obtener la rotación actual del transductor ---
-    pos, rot = mov.get_current_position(), mov.get_current_orientation()
-
-    # Convertir la rotación (pitch, yaw, roll) a vector normal
-    normal = rotation_to_normal(*rot)
-
-    # --- CORRECCIÓN: asegurar que el plano corte el cuerpo ---
-    # Si el transductor está fuera, desplazamos el plano hacia adentro (por el vector normal)
-    # offset ajusta qué tan "profundo" entra el plano en el volumen
-    offset = 1.05  # este valor suele ser ~la distancia del transductor al centro
-    origin = [
-        pos[0] + normal[0] * offset,
-        pos[1] + normal[1] * offset,
-        pos[2] + normal[2] * offset - 0.02  # leve ajuste como tu plano original
-    ]
-
-
-    """ debug_transducer_vtk.debug_transducer_vtk(
-        position=pos,
-        orientation=rot,     # pasamos la matriz
-        normal=normal,
-        target_origin=origin,
-        show_skin=True,
-        show_position=True,
-        show_normal=True,
-        show_plane=True,
-        show_target=True,
-        show_orientation=True,
-        show_cone=True,
-        scale_factor=0.02
-    )
-    # --- (opcional) log para depuración ---
-    print(f"Posición: {pos}")
-    print(f"Rotación (pitch, yaw, roll): {rot}")
-    print(f"Normal: {normal}")
-    print(f"Origen del plano: {origin}")
-
-    # --- Mantener compatibilidad con tu versión previa ---"""
+def vtk_visualization_image(request): #RV
     if not mallas:
         levantarMallas()
+    data = json.loads(request)
+    x = data['x']
+    y = data['y']
+    z = data['z']
+    
+    normal_global[0]=x
+    normal_global[1]=y
+    normal_global[2]=z
 
+    if not mallas:
+        levantarMallas()
+    
     filled_slices = []
     for malla, color in mallas:
-        filled_slice = slice_and_fill_mesh_vtk(
-            malla,
-            origin=origin,
-            normal=normal
-        )
+        filled_slice = slice_and_fill_mesh_vtk(malla, origin=[0, 0, -0.02], normal=normal_global)
         filled_slices.append(filled_slice)
 
     slice_image = slice_to_image(filled_slices, mallas_colors)
+    
+    return slice_image
 
-    return slice_image, pos, normal
-
-
-def red128(request):
-    return render(request, 'api/red128.html')
-
-def red256(request):
-    return render(request, 'api/red256.html')
-
-def vtk_image(request):
-    return render(request, 'api/vtk_image.html')
-
-def pruebaFOV(request):
-    return render(request, 'api/fov.html')
-
-def vtk_visualizador(request):
-    return render(request, 'api/vtk_visualizador.html')
-
-def vtk_mover(request):
-    return render(request, 'api/vtk_visualizador_mover.html')
-
-
-
-def pruebaRecorte(request):
-    return render(request, 'api/pruebaRecorte.html')
+def combinedSlice(request):
+    return render(request, 'api/combinedSlice.html')
 
 def pruebaRecorte2(request):
     return render(request, 'api/pruebaRecorte2.html')
@@ -915,7 +719,6 @@ def createpoly_ellipsoid(request):
     reader.SetFileName(folder_path)
     reader.Update()
     skin.append(reader.GetOutput())
-    print(os.path.exists(reader.GetFileName()))
 
     # Obtener las dimensiones de la malla de la piel
     skin_poly_data = reader.GetOutput()
@@ -946,7 +749,14 @@ def createpoly_ellipsoid(request):
 
     skin_actor = vtk.vtkActor()
     skin_actor.SetMapper(skin_mapper)
-    skin_actor.GetProperty().SetColor(1, 0.5, 0.5)  # Color rosado para la piel
+
+    # Configurar propiedades de la piel para un aspecto más realista
+    skin_property = skin_actor.GetProperty()
+    skin_property.SetColor(1.0, 0.8, 0.6)          # Color piel
+    skin_property.SetAmbient(0.2)                  # Luz ambiental suave
+    skin_property.SetDiffuse(0.8)                  # Reflexión difusa
+    skin_property.SetSpecular(0.3)                  # Reflexión especular
+    skin_property.SetSpecularPower(10)              # Brillo especular
 
     # Crear el elipsoide con los radios ajustados
     ellipsoid = vtk.vtkParametricEllipsoid()
@@ -956,7 +766,7 @@ def createpoly_ellipsoid(request):
 
     ellipsoid_source = vtk.vtkParametricFunctionSource()
     ellipsoid_source.SetParametricFunction(ellipsoid)
-    ellipsoid_source.SetUResolution(50)  # Resolucin de la malla del elipsoide
+    ellipsoid_source.SetUResolution(50)  # Resolución de la malla del elipsoide
     ellipsoid_source.SetVResolution(50)
     ellipsoid_source.Update()
 
@@ -966,30 +776,26 @@ def createpoly_ellipsoid(request):
     ellipsoid_actor = vtk.vtkActor()
     ellipsoid_actor.SetMapper(ellipsoid_mapper)
     ellipsoid_actor.GetProperty().SetColor(0.5, 0.5, 1)  # Color azul para el elipsoide
-    ellipsoid_actor.GetProperty().SetOpacity(0.5)  # Hacerlo semi-transparente
+    ellipsoid_actor.GetProperty().SetOpacity(0.5)        # Hacerlo semi-transparente
 
-    # Centrar el elipsoide en la misma posicin que la malla de la piel
+    # Centrar el elipsoide en la misma posición que la malla de la piel
     ellipsoid_actor.SetPosition(
         (bounds[0] + bounds[1]) / 2.0,  # Centro en X
         (bounds[2] + bounds[3]) / 2.0,  # Centro en Y
         (bounds[4] + bounds[5]) / 2.0   # Centro en Z
     )
 
-    # Aadir los actores al renderer
+    # Añadir los actores al renderer
     renderer.AddActor(skin_actor)
     renderer.AddActor(ellipsoid_actor)
 
-    # Configurar la cmara y renderizar
+    # Configurar la cámara y renderizar
     renderer.ResetCamera()
     render_window.Render()
 
     # Iniciar el interactor
     interactor.Start()
     return HttpResponse("")
-
-import vtk
-from math import cos, sin, pi
-from django.http import HttpResponse
 
 def createpoly_ellipsoid_with_mov(request):
     folder_path = "api/stl-files/0_skin.stl"
@@ -1198,7 +1004,6 @@ def createpoly_spline(request):
     interactor.Start()
     return HttpResponse("")
 
-import vtk
 
 def restrict_movement_to_skin(skin_poly_data, transducer_position):
     cell_locator = vtk.vtkCellLocator()
@@ -1233,134 +1038,7 @@ def restrict_movement_to_skin(skin_poly_data, transducer_position):
 
     return closest_point, normal
 
-def vtk_visualization_with_mov(request, normal=normal_global):
-    # Crear un renderer de VTK
-    renderer = vtk.vtkRenderer()
-
-    # Asegrate de que las mallas estn disponibles
-    if not mallas:
-        levantarMallas()
-
-    # Agregar las mallas existentes
-    for malla, color in mallas:
-        filled_slice = slice_and_fill_mesh_vtk(
-            malla,
-            origin=[0, 0, -0.02],
-            normal=normal
-        )
-        mesh_mapper = vtk.vtkPolyDataMapper()
-        mesh_mapper.SetInputData(malla)
-        mesh_actor = vtk.vtkActor()
-        mesh_actor.SetMapper(mesh_mapper)
-        mesh_actor.GetProperty().SetOpacity(0.1)
-
-        slice_mapper = vtk.vtkPolyDataMapper()
-        slice_mapper.SetInputData(filled_slice)
-        slice_actor = vtk.vtkActor()
-        slice_actor.SetMapper(slice_mapper)
-        slice_actor.GetProperty().SetColor(0.58, 0.0, 0.83)
-
-        renderer.AddActor(mesh_actor)
-        renderer.AddActor(slice_actor)
-
-    # Configurar el transductor
-    transductor_mapper = vtk.vtkPolyDataMapper()
-    transductor_mapper.SetInputData(transductor[0])
-
-    transductor_actor = vtk.vtkActor()
-    transductor_actor.SetMapper(transductor_mapper)
-    transductor_actor.GetProperty().SetOpacity(0.4)
-    transductor_actor.GetProperty().SetColor(1, 0.0, 0.0)
-
-    # Definir la posicin inicial del transductor
-    transductor_position = [0.5, 0.5, 0.5]  # Posicin de ejemplo
-    transductor_actor.SetPosition(*transductor_position)
-    renderer.AddActor(transductor_actor)
-
-    # Funcin para mover el transductor
-    def move_transducer(position):
-        valid_position, normal = restrict_movement_to_skin(mallas[0], position)  # Usar la primera malla como piel
-        transductor_actor.SetPosition(valid_position)
-        # Ajustar la orientacin del transductor (opcional)
-        # transductor_actor.SetOrientation(normal)
-        render_window.Render()
-
-    # Funcin para manejar eventos del teclado
-    def on_key_press(obj, event):
-        key = obj.GetKeySym()
-        delta = 0.1  # Cantidad de movimiento en cada paso
-
-        if key == "Up":
-            transductor_position[1] += delta  # Mover en Y positivo
-        elif key == "Down":
-            transductor_position[1] -= delta  # Mover en Y negativo
-        elif key == "Left":
-            transductor_position[0] -= delta  # Mover en X negativo
-        elif key == "Right":
-            transductor_position[0] += delta  # Mover en X positivo
-        elif key == "1":
-            transductor_position[2] += delta  # Mover en Z positivo
-        elif key == "3":
-            transductor_position[2] -= delta  # Mover en Z negativo
-
-        # Restringir el movimiento del transductor
-        move_transducer(transductor_position)
-
-    # Configuracin de la ventana de renderizado
-    renderer.SetBackground(1, 1, 1)
-    render_window = vtk.vtkRenderWindow()
-    render_window.AddRenderer(renderer)
-    render_window.SetSize(1200, 800)
-    render_window.SetWindowName("VTK Visualization")
-
-    render_window_interactor = vtk.vtkRenderWindowInteractor()
-    render_window_interactor.SetRenderWindow(render_window)
-
-    # Asignar la funcin de manejo de eventos al interactor
-    render_window_interactor.AddObserver("KeyPressEvent", on_key_press)
-
-    # Renderizar y empezar la interaccin
-    render_window.Render()
-    render_window_interactor.Initialize()
-    render_window_interactor.Start()
-
-    return True
-
-def color(request):
-    from PIL import Image
-
-    # Cargar la imagen
-    image_path = "C:/Users/Juli/Desktop/pickleada.png"
-    img = Image.open(image_path)
-    img = img.convert("RGB")  # Asegurarse de que la imagen est en modo RGB
-
-    # Obtener los pxeles de la imagen
-    pixels = img.load()
-
-    # Iterar sobre cada pxel y cambiar el color si no es rojo
-    for i in range(img.width):
-        for j in range(img.height):
-            r, g, b = pixels[i, j]
-            if not (r == 255 and g == 0 and b == 0):  # Comprobar si el pxel no es rojo (RGB: (255, 0, 0))
-                pixels[i, j] = (255, 255, 255)  # Cambiar el pxel a blanco (RGB: (255, 255, 255))
-
-    # Guardar la imagen modificada
-    img.save("C:/Users/Juli/Desktop/pickleada.png")
-
-import math
-import base64
-import io
-import numpy as np
-from PIL import Image
-import vtk
-from vtk.util import numpy_support
 def vtk_visualization_images(mov_module, image_rotation_deg=0):
-
-    import math
-    import numpy as np
-    import vtk
-    from vtk.util import numpy_support
-
     global mallas
 
     if not mallas:
@@ -1548,18 +1226,9 @@ def vtk_visualization_images(mov_module, image_rotation_deg=0):
 
     return img.astype(np.uint8), pos, rot
 
-import numpy as np
-import vtk
-import numpy as np
-import vtk
-import numpy as np
-import vtk
 
 def visualize_cutting_plane(mov_module, plane_size=None):
-    """
-    Muestra en una ventana 3D de VTK las mallas cargadas, el plano de corte,
-    y una representación del transductor (esfera + flecha de dirección).
-    """
+
     # -------------------------------------------------
     # Asegurar que las mallas están cargadas
     # -------------------------------------------------
@@ -1567,9 +1236,6 @@ def visualize_cutting_plane(mov_module, plane_size=None):
     if not mallas:
         levantarMallas()
 
-    # -------------------------------------------------
-    # Obtener controlador, posición y orientación
-    # -------------------------------------------------
     controller = mov_module._controller
     if controller is None:
         mov_module.init_controller()
@@ -1598,9 +1264,6 @@ def visualize_cutting_plane(mov_module, plane_size=None):
     up0 = np.cross(right0, forward0)
     up0 = up0 / np.linalg.norm(up0)
 
-    # -------------------------------------------------
-    # Rotaciones locales (pitch, yaw, roll)
-    # -------------------------------------------------
     pitch = controller.local_pitch
     yaw   = controller.local_yaw
     roll  = controller.local_roll
@@ -1633,9 +1296,7 @@ def visualize_cutting_plane(mov_module, plane_size=None):
     right   = R @ right0
     up      = R @ up0
 
-    # -------------------------------------------------
-    # Crear renderer
-    # -------------------------------------------------
+
     ren = vtk.vtkRenderer()
     ren.SetBackground(0.1, 0.2, 0.4)
 
@@ -1649,9 +1310,6 @@ def visualize_cutting_plane(mov_module, plane_size=None):
         actor.GetProperty().SetOpacity(0.7)
         ren.AddActor(actor)
 
-    # -------------------------------------------------
-    # Calcular la diagonal combinada de las mallas
-    # -------------------------------------------------
     append_all = vtk.vtkAppendPolyData()
     for polydata, _ in mallas:
         append_all.AddInputData(polydata)
@@ -1671,9 +1329,6 @@ def visualize_cutting_plane(mov_module, plane_size=None):
     if plane_size is None:
         plane_size = diagonal * 0.8
 
-    # -------------------------------------------------
-    # Construir el plano (cuadrado) centrado en 'pos' con orientación final
-    # -------------------------------------------------
     plane_source = vtk.vtkPlaneSource()
     plane_source.SetOrigin(-0.5, -0.5, 0.0)
     plane_source.SetPoint1( 0.5, -0.5, 0.0)
@@ -1707,9 +1362,7 @@ def visualize_cutting_plane(mov_module, plane_size=None):
     plane_actor.GetProperty().SetLighting(False)
     ren.AddActor(plane_actor)
 
-    # -------------------------------------------------
-    # Flecha indicando la normal (up) - opcional, pero la dejamos
-    # -------------------------------------------------
+
     arrow_source = vtk.vtkArrowSource()
     arrow_source.SetTipResolution(6)
     arrow_source.SetShaftResolution(6)
@@ -1742,10 +1395,7 @@ def visualize_cutting_plane(mov_module, plane_size=None):
     arrow_actor.GetProperty().SetLighting(False)
     ren.AddActor(arrow_actor)
 
-    # -------------------------------------------------
-    # REPRESENTACIÓN DEL TRANSDUCTOR (esfera + flecha de dirección forward)
-    # -------------------------------------------------
-    # Esfera en la posición actual
+
     sphere_source = vtk.vtkSphereSource()
     sphere_source.SetRadius(0.1 * plane_size)  # tamaño relativo
     sphere_source.SetThetaResolution(16)
@@ -1762,8 +1412,7 @@ def visualize_cutting_plane(mov_module, plane_size=None):
     sphere_actor.GetProperty().SetLighting(False)
     ren.AddActor(sphere_actor)
 
-    # Flecha que indica la dirección forward (hacia donde apunta el transductor)
-    # Creamos una flecha (vtkArrowSource) y la orientamos según forward
+
     arrow_forward_source = vtk.vtkArrowSource()
     arrow_forward_source.SetTipResolution(6)
     arrow_forward_source.SetShaftResolution(6)
@@ -1781,7 +1430,6 @@ def visualize_cutting_plane(mov_module, plane_size=None):
             angle = np.arccos(np.clip(np.dot(x_axis, forward), -1, 1)) * 180 / np.pi
             arrow_forward_transform.RotateWXYZ(angle, v[0], v[1], v[2])
 
-    # Escalamos para que tenga una longitud adecuada (la flecha original tiene longitud 1, el cono ocupa ~0.35)
     arrow_forward_transform.Scale(plane_size * 0.5, plane_size * 0.1, plane_size * 0.1)
 
     arrow_forward_filter = vtk.vtkTransformPolyDataFilter()
@@ -1798,21 +1446,7 @@ def visualize_cutting_plane(mov_module, plane_size=None):
     forward_arrow_actor.GetProperty().SetLighting(False)
     ren.AddActor(forward_arrow_actor)
 
-    # -------------------------------------------------
-    # (Opcional) Ejes de referencia - los quitamos para no saturar
-    # -------------------------------------------------
-    # axes = vtk.vtkAxesActor()
-    # axes.SetTotalLength(0.5*diagonal, 0.5*diagonal, 0.5*diagonal)
-    # axes.SetShaftTypeToCylinder()
-    # axes.SetCylinderRadius(0.02)
-    # axes.SetTipTypeToCone()
-    # axes.SetConeRadius(0.1)
-    # axes.AxisLabelsOff()
-    # ren.AddActor(axes)
 
-    # -------------------------------------------------
-    # Renderizador e interactor
-    # -------------------------------------------------
     renWin = vtk.vtkRenderWindow()
     renWin.AddRenderer(ren)
     renWin.SetSize(800, 600)

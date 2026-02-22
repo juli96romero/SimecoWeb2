@@ -224,7 +224,7 @@ const TryVTK = () => {
 
   return (
     <div className="app-container">
-      <div className="eco-viewport">
+      <div className={`eco-viewport ${showImage2 ? "split" : "centered"}`}>
         <div className="eco-frame">
           <ImageDisplay imageData={imageData} />
         </div>

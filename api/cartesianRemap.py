@@ -61,7 +61,7 @@ fov_optimizer.precompute_for_128x128()
 
 def acomodarFOV_ultra_rapido(img):
     """
-    Versin ultra optimizada que usa TODO precomputado
+    Versin ultra optimizada que usa precomputado
     Entrada: imagen 128x128x3
     Salida: imagen transformada
     """
