@@ -6,9 +6,6 @@ import ArrowButtons from "./ArrowButtons";
 import BrightnessSlider from "./BrightnessSlider";
 
 const TryVTK = () => {
-  const [xValue, setXValue] = useState(0.3);
-  const [yValue, setYValue] = useState(0.3);
-  const [zValue, setZValue] = useState(0.99);
   const [imageData, setImageData] = useState(null);
   const [imageData2, setImageData2] = useState(null); // Nueva imagen
   const [showImage2, setShowImage2] = useState(false); // Estado para mostrar/ocultar imagen 2
@@ -42,12 +39,6 @@ const TryVTK = () => {
   const chatSocket = useRef(null);
   const buttonState = useRef(false);
   const [isRunning, setIsRunning] = useState(false);
-
-  // Estado para los contadores de flechas
-  const [arrowUpCount, setArrowUpCount] = useState(0);
-  const [arrowDownCount, setArrowDownCount] = useState(0);
-  const [arrowLeftCount, setArrowLeftCount] = useState(0);
-  const [arrowRightCount, setArrowRightCount] = useState(0);
 
   const resetValues = () => {
     setBrightnessGeneral(0);
@@ -136,9 +127,6 @@ const TryVTK = () => {
     chatSocket.current.send(
       JSON.stringify({
         message: "message",
-        x: xValue + 0.01 * (Math.random() * 2 - 1),
-        y: yValue + 0.01 * (Math.random() * 2 - 1),
-        z: zValue + 0.01 * (Math.random() * 2 - 1),
         brightness: brightnessRefs.current[0],
         brightness1: brightnessRefs.current[1],
         brightness2: brightnessRefs.current[2],
@@ -148,17 +136,13 @@ const TryVTK = () => {
         brightness6: brightnessRefs.current[6],
         brightness7: brightnessRefs.current[7],
         brightness8: brightnessRefs.current[8],
-        arrowUp: arrowUpCount,
-        arrowDown: arrowDownCount,
-        arrowLeft: arrowLeftCount,
-        arrowRight: arrowRightCount,
         specialActorPosition: specialActorPosition,
         direction: direction,
         action: action,
         show_image_2: showImage2,
       })
     );
-  }, [xValue, yValue, zValue, arrowUpCount, arrowDownCount, arrowLeftCount, arrowRightCount, specialActorPosition, showImage2]);
+  }, [specialActorPosition, showImage2]);
 
   // Función para manejar clics en las flechas
   const handleArrowClick = useCallback((direction, action) => {
@@ -173,47 +157,6 @@ const TryVTK = () => {
       sendMessage();
       return next;
     });
-  };
-
-
-  // Manejador de eventos de teclado
-  const handleKeyDown = useCallback((event) => {
-    // Verificar si la tecla presionada es una de las flechas
-    switch (event.key) {
-      case "ArrowUp":
-        event.preventDefault(); // Prevenir comportamiento por defecto
-        handleArrowClick("up", "move");
-        break;
-      case "ArrowDown":
-        event.preventDefault();
-        handleArrowClick("down", "move");
-        break;
-      case "ArrowLeft":
-        event.preventDefault();
-        handleArrowClick("left", "move");
-        break;
-      case "ArrowRight":
-        event.preventDefault();
-        handleArrowClick("right", "move");
-        break;
-      default:
-        break;
-    }
-  }, [handleArrowClick]);
-
-  // Agregar event listener para teclas
-  useEffect(() => {
-    window.addEventListener("keydown", handleKeyDown);
-
-    // Limpiar el event listener al desmontar el componente
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [handleKeyDown]);
-
-  const buttonPressed = () => {
-    buttonState.current = !buttonState.current;
-    sendMessage();
   };
 
   // Función para alternar la visualización de la segunda imagen

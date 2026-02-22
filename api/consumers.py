@@ -118,19 +118,28 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
             vtk_time = 0
             if not self.direction:  # Solo procesar VTK si no hay movimiento
                 vtk_start = time.time()
-
                 imagen_recorte_vtk, pos, rot = self.vtk_engine.vtk_visualization_images(mov, image_rotation_deg=0)
-
                 vtk_time = time.time() - vtk_start
                 logging.info(f"VTK processing time: {vtk_time*1000:.2f}ms")
             else:
                 imagen_recorte_vtk = None
 
+            # Clippeo de imagen segmentada
+            clipping_time = 0
+            if imagen_recorte_vtk is not None:
+                clipping_start = time.time()
+                clipped, imagen_recorte_vtk = clip_segmented_image(imagen_recorte_vtk)
+                clipping_time = time.time() - clipping_start
+                logging.info(f"Clipping time: {clipping_time*1000:.2f}ms")
+            else:
+                imagen_recorte_vtk = None
+
+
             # Inferencia de red neuronal
             inference_time = 0
             if imagen_recorte_vtk is not None:
                 inference_start = time.time()
-                image_data = model.hacerInferencia(img_generada=imagen_recorte_vtk)
+                image_data = model.hacerInferencia(img_generada=clipped)
                 inference_time = time.time() - inference_start
                 logging.info(f"Inference time: {inference_time*1000:.2f}ms")
             else:
@@ -437,3 +446,25 @@ def ajustar_brillo_con_franjas(imagen, brillo):
     imagen_ajustada = np.clip(imagen_ajustada, 0, 255).astype(np.uint8)
 
     return imagen_ajustada
+
+
+def clip_segmented_image(image):
+
+    img = image.copy().astype(np.float32)
+
+    # Crear máscara (todo oscuro al inicio)
+    mask = np.ones((300, 300), dtype=np.float32) * 0.5
+
+    # Cuadrante 8 (fila 3, columna 2)
+    mask[200:300, 100:200] = 1.0
+
+    # Aplicar máscara a los 3 canales
+    resultado = img * mask[:, :, np.newaxis]
+
+    # Volver a uint8
+    resultado = np.clip(resultado, 0, 255).astype(np.uint8)
+
+    # Guardar el cuadrante 8 como "centro"
+    centro = image[200:300, 100:200]
+
+    return centro, resultado

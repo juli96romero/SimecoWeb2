@@ -3,6 +3,7 @@ import math
 import numpy as np
 import vtk
 from vtk.util import numpy_support
+import random
 
 class FastVtkVisualizer:
     """
@@ -82,7 +83,7 @@ class FastVtkVisualizer:
             img, pos, rot = vtk_engine.vtk_visualization_images(mov, image_rotation_deg=90)
         Devuelve: (img_uint8, pos, rot)
         """
-
+        
         # IMPORTS LOCALES (igual que original)
         import math as _math
         import numpy as _np
@@ -95,8 +96,14 @@ class FastVtkVisualizer:
             mov_module.init_controller()
             controller = mov_module._controller
 
+
+        rand_pos = (random.uniform(-0.005, 0.005), random.uniform(-0.005, 0.005), random.uniform(-0.005, 0.005))
+        rand_rot = (random.uniform(-0.005, 0.005), random.uniform(-0.005, 0.005), random.uniform(-0.005, 0.005))
         pos = controller.calculate_position()
         rot = controller.calculate_orientation()
+
+        pos = (pos[0] + rand_pos[0], pos[1] + rand_pos[1], pos[2] + rand_pos[2])
+        #rot = (rot[0] + rand_rot[0], rot[1] + rand_rot[1], rot[2] + rand_rot[2])
 
         pos_np = _np.array(pos)
 
@@ -225,7 +232,9 @@ class FastVtkVisualizer:
         cam_pos = pos_np - up * cam_distance
 
         camera.SetPosition(cam_pos.tolist())
-        camera.SetFocalPoint(pos)
+        focus_offset = 1  # ajustalo fino
+        new_focus = pos_np + forward * focus_offset
+        camera.SetFocalPoint(new_focus.tolist())
         camera.SetViewUp(forward.tolist())
         camera.SetParallelProjection(True)
 
