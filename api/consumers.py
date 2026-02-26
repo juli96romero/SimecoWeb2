@@ -1,11 +1,9 @@
 import json
 from channels.generic.websocket import WebsocketConsumer
-
 from api.fastVtkVisualizer import FastVtkVisualizer
 from .red import main  
 import base64
 import pickle
-
 import numpy as np
 from . import views
 from .cartesianRemap import acomodarFOV_ultra_rapido
@@ -26,6 +24,7 @@ from channels.generic.websocket import WebsocketConsumer
 from api.cartesianRemap import fov_optimizer  
 import polarTransform
 from .bitstream_optimizer import BitStreamOptimizer
+from .CoronalSliceVisualizer import CoronalSliceVisualizer
 input_path = "./data/validation/labels"
 output_path = "./results/" 
 #Levanto las dos redes
@@ -51,6 +50,7 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
     _total_requests = 0
     _total_processing_time = 0
     mallas = None
+    visualizer = None
 
     def connect(self):
 
@@ -66,7 +66,7 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
         # 🔥 CREAR MOTOR VTK UNA SOLA VEZ
         if not hasattr(self, "vtk_engine"):
             self.vtk_engine = FastVtkVisualizer(self.mallas, width=300, height=300)
-
+        self.visualizer = CoronalSliceVisualizer(self.mallas, width=300, height=300)
         fov_optimizer.precompute_for_128x128()
 
         self.send(text_data=json.dumps({
@@ -118,7 +118,8 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
             vtk_time = 0
             if not self.direction:  # Solo procesar VTK si no hay movimiento
                 vtk_start = time.time()
-                imagen_recorte_vtk, pos, rot = self.vtk_engine.vtk_visualization_images(mov, image_rotation_deg=0)
+                #imagen_recorte_vtk, pos, rot = self.vtk_engine.vtk_visualization_images(mov, image_rotation_deg=0)
+                imagen_recorte_vtk, pos, rot = self.visualizer.render_from_controller(mov)
                 vtk_time = time.time() - vtk_start
                 logging.info(f"VTK processing time: {vtk_time*1000:.2f}ms")
             else:
@@ -137,7 +138,7 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
 
             # Inferencia de red neuronal
             inference_time = 0
-            if imagen_recorte_vtk is not None:
+            if clipped is not None:
                 inference_start = time.time()
                 image_data = model.hacerInferencia(img_generada=clipped)
                 inference_time = time.time() - inference_start
@@ -159,6 +160,7 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
 
                 # Acomodar FOV
                 fov_start = time.time()
+                print("shape de imagen brillo ajustado: ", imagen_brillo_ajustado.shape)
                 image_fov = acomodarFOV_ultra_rapido(imagen_brillo_ajustado)
                 fov_time = time.time() - fov_start
                 logging.info(f"  FOV processing: {fov_time*1000:.2f}ms")
@@ -181,6 +183,17 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
             logging.info(f"Average processing time: {self._total_processing_time/self._total_requests*1000:.2f}ms")
             logging.info(f"Estimated FPS: {1/total_time if total_time > 0 else 0:.1f}")
             logging.info("-" * 50)
+
+            # Acomodar FOV imagen superpuesta
+            superpuesta = None
+            fov_start = time.time()
+
+            superpuesta = cv2.resize(clipped, (128, 128))
+            superpuesta = acomodarFOV_ultra_rapido(superpuesta)
+            resultado = cv2.addWeighted(image_fov, 1.0, superpuesta, 0.5, 0)
+            fov_time = time.time() - fov_start
+            logging.info(f"  FOV processing superpuesta: {fov_time*1000:.2f}ms")
+
             # Enviar respuesta
             response_data = {
                 "image_data": image_base64,
@@ -188,7 +201,8 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
                 "position": nueva_posicion,
                 "processing_time": total_time,
                 "direction": self.direction,
-                "rotation": nueva_rotacion
+                "rotation": nueva_rotacion,
+                "image_overlay": bitstream_optimizer.formatAsBitStream_optimized(resultado)
             }
             
             self.send(text_data=json.dumps(response_data))

@@ -5,54 +5,41 @@ import vtk
 from vtk.util import numpy_support
 import random
 
+
 class FastVtkVisualizer:
     """
-    Reimplementación persistente del pipeline VTK que mantiene el
-    comportamiento EXACTO de la función original vtk_visualization_images.
-    - Conserva la lógica de rotaciones y framing (cálculo de bounds por frame).
-    - Evita recrear actores/mappers/clipper/renderer cada frame; los crea una vez.
-    - Sigue haciendo clipper.Update() y append_all.Update() por frame para que
-      la cámara quede idéntica al original.
+    Pipeline VTK persistente optimizado.
+    Mantiene comportamiento EXACTO del original.
     """
 
     def __init__(self, mallas, width=300, height=300):
-        """
-        mallas: lista de (vtkPolyData, color) -- mismo formato que tenías
-        width, height: tamaño de la imagen de salida
-        """
         self.mallas = mallas
         self.width = width
         self.height = height
 
-        # Renderer + RenderWindow (creados una sola vez)
+        # Renderer
         self.ren = vtk.vtkRenderer()
         self.ren.SetBackground(0, 0, 0)
 
+        # RenderWindow persistente
         self.renWin = vtk.vtkRenderWindow()
         self.renWin.SetOffScreenRendering(1)
+        self.renWin.SetMultiSamples(0)
         self.renWin.AddRenderer(self.ren)
         self.renWin.SetSize(self.width, self.height)
-        # Desactivar multi sampling por perf (igual que en original no estaba explícito)
-        self.renWin.SetMultiSamples(0)
 
         # Plano persistente
         self.plane = vtk.vtkPlane()
 
-        # Para cada malla: creamos un clipper conectado al polydata original,
-        # un mapper que tome la salida del clipper y un actor. No vamos a
-        # recrearlos por frame: sólo actualizamos la función de clip (plane)
         self.clippers = []
-        self.mappers = []
         self.actors = []
 
         for polydata, color in self.mallas:
             clipper = vtk.vtkClipPolyData()
             clipper.SetInputData(polydata)
             clipper.SetClipFunction(self.plane)
-            # NOTA: no llamamos clipper.Update() aquí (se hará por frame)
 
             mapper = vtk.vtkPolyDataMapper()
-            # Conectamos al puerto de salida del clipper para que el pipeline sea dinámico
             mapper.SetInputConnection(clipper.GetOutputPort())
             mapper.ScalarVisibilityOff()
 
@@ -64,202 +51,224 @@ class FastVtkVisualizer:
             self.ren.AddActor(actor)
 
             self.clippers.append(clipper)
-            self.mappers.append(mapper)
             self.actors.append(actor)
 
-        # Cámara (paralela como en original)
+        # Cámara paralela
         self.camera = self.ren.GetActiveCamera()
         self.camera.SetParallelProjection(True)
 
-        # WindowToImageFilter persistente
+        # WindowToImage persistente
         self.w2if = vtk.vtkWindowToImageFilter()
         self.w2if.SetInput(self.renWin)
         self.w2if.SetInputBufferTypeToRGB()
         self.w2if.ReadFrontBufferOff()
 
-    def vtk_visualization_images(self, mov_module, image_rotation_deg=0):
-        """
-        Firma idéntica a tu función original:
-            img, pos, rot = vtk_engine.vtk_visualization_images(mov, image_rotation_deg=90)
-        Devuelve: (img_uint8, pos, rot)
-        """
-        
-        # IMPORTS LOCALES (igual que original)
-        import math as _math
-        import numpy as _np
+    # ---------------------------------------------------------
+    # ROTACIONES OPTIMIZADAS (sin crear matrices 3x3)
+    # ---------------------------------------------------------
 
-        # -------------------------------------------------
-        # Obtener controlador (igual que original)
-        # -------------------------------------------------
+    @staticmethod
+    def apply_euler_rotation(forward, up, pitch, yaw, roll):
+        cp, sp = math.cos(pitch), math.sin(pitch)
+        cy, sy = math.cos(yaw), math.sin(yaw)
+        cr, sr = math.cos(roll), math.sin(roll)
+
+        # rot_x (pitch)
+        forward = np.array([
+            forward[0],
+            cp * forward[1] - sp * forward[2],
+            sp * forward[1] + cp * forward[2]
+        ])
+
+        up = np.array([
+            up[0],
+            cp * up[1] - sp * up[2],
+            sp * up[1] + cp * up[2]
+        ])
+
+        # rot_y (yaw)
+        forward = np.array([
+            cy * forward[0] + sy * forward[2],
+            forward[1],
+            -sy * forward[0] + cy * forward[2]
+        ])
+
+        up = np.array([
+            cy * up[0] + sy * up[2],
+            up[1],
+            -sy * up[0] + cy * up[2]
+        ])
+
+        # rot_z (roll)
+        forward = np.array([
+            cr * forward[0] - sr * forward[1],
+            sr * forward[0] + cr * forward[1],
+            forward[2]
+        ])
+
+        up = np.array([
+            cr * up[0] - sr * up[1],
+            sr * up[0] + cr * up[1],
+            up[2]
+        ])
+
+        return forward, up
+
+    # ---------------------------------------------------------
+    # FUNCIÓN PRINCIPAL
+    # ---------------------------------------------------------
+
+    def vtk_visualization_images(self, mov_module, image_rotation_deg=0):
+
         controller = mov_module._controller
         if controller is None:
             mov_module.init_controller()
             controller = mov_module._controller
 
+        rand_pos = (
+            random.choice([-0.002, -0.001, 0, 0.001, 0.002]),
+            random.choice([-0.002, -0.001, 0, 0.001, 0.002]),
+            random.choice([-0.002, -0.001, 0, 0.001, 0.002])
+        )
 
-        rand_pos = (random.choice([-0.002,-0.001, 0, 0.001, 0.002]), random.choice([-0.002,-0.001, 0, 0.001, 0.002]), random.choice([-0.002,-0.001, 0, 0.001, 0.002]))
         pos = controller.calculate_position()
         rot = controller.calculate_orientation()
 
-        pos = (pos[0] + rand_pos[0], pos[1] + rand_pos[1], pos[2] + rand_pos[2])
+        pos = (
+            pos[0] + rand_pos[0],
+            pos[1] + rand_pos[1],
+            pos[2] + rand_pos[2]
+        )
 
-        pos_np = _np.array(pos)
+        pos_np = np.asarray(pos, dtype=np.float64)
 
         # -------------------------------------------------
-        # Calcular forward/up exactamente como tu original
+        # Forward / Up base
         # -------------------------------------------------
-        center_proj = _np.array([
+
+        center_proj = np.array([
             controller.center_x,
-            pos_np[1],  # ← misma altura actual
+            pos_np[1],
             controller.center_z
-        ])
+        ], dtype=np.float64)
 
         forward = center_proj - pos_np
-        # defensiva: si por alguna razón forward es cero, evitar crash
-        norm_forward = _np.linalg.norm(forward)
-        if norm_forward < 1e-9:
-            forward = _np.array([0.0, 0.0, 1.0])
+        norm = np.linalg.norm(forward)
+
+        if norm < 1e-9:
+            forward = np.array([0.0, 0.0, 1.0])
         else:
-            forward = forward / norm_forward
+            forward /= norm
 
-        world_up = _np.array([0, 1, 0])
-        if abs(_np.dot(forward, world_up)) > 0.99:
-            world_up = _np.array([0, 0, 1])
+        world_up = np.array([0.0, 1.0, 0.0])
+        if abs(np.dot(forward, world_up)) > 0.99:
+            world_up = np.array([0.0, 0.0, 1.0])
 
-        right = _np.cross(forward, world_up)
-        right = right / _np.linalg.norm(right)
+        right = np.cross(forward, world_up)
+        right /= np.linalg.norm(right)
 
-        up = _np.cross(right, forward)
-        up = up / _np.linalg.norm(up)
-
-        # -------------------------------------------------
-        # Rotaciones locales (misma matemática que original)
-        # -------------------------------------------------
-        pitch = controller.local_pitch
-        yaw   = controller.local_yaw
-        roll  = controller.local_roll
-
-        def rot_x(a):
-            return _np.array([
-                [1, 0, 0],
-                [0, _np.cos(a), -_np.sin(a)],
-                [0, _np.sin(a),  _np.cos(a)]
-            ])
-
-        def rot_y(a):
-            return _np.array([
-                [ _np.cos(a), 0, _np.sin(a)],
-                [0, 1, 0],
-                [-_np.sin(a), 0, _np.cos(a)]
-            ])
-
-        def rot_z(a):
-            return _np.array([
-                [_np.cos(a), -_np.sin(a), 0],
-                [_np.sin(a),  _np.cos(a), 0],
-                [0, 0, 1]
-            ])
-
-        R = rot_z(roll) @ rot_y(yaw) @ rot_x(pitch)
-
-        forward = R @ forward
-        up = R @ up
+        up = np.cross(right, forward)
+        up /= np.linalg.norm(up)
 
         # -------------------------------------------------
-        # Actualizar plano de corte (igual que original)
+        # Rotación Euler optimizada
         # -------------------------------------------------
+
+        forward, up = self.apply_euler_rotation(
+            forward,
+            up,
+            controller.local_pitch,
+            controller.local_yaw,
+            controller.local_roll
+        )
+
+        # -------------------------------------------------
+        # Actualizar plano
+        # -------------------------------------------------
+
         self.plane.SetOrigin(pos)
         self.plane.SetNormal(up.tolist())
 
         # -------------------------------------------------
-        # Para cada malla: ejecutar clipper.Update() y recolectar polígonos rellenados
-        # (igual que en tu código original, que hacía clipper.Update() y
-        # mapper.SetInputData(filled_poly))
+        # Clip + cálculo manual de bounds
         # -------------------------------------------------
-        actores_creados = 0
-        append_all = vtk.vtkAppendPolyData()
 
-        for idx, (clipper, actor) in enumerate(zip(self.clippers, self.actors)):
-            # El clipper ya está conectado al polydata original y a la plane
-            clipper.Update()  # produce el filled_poly dinámico
+        min_x = min_y = min_z = float("inf")
+        max_x = max_y = max_z = float("-inf")
+        actores_creados = 0
+
+        for clipper, actor in zip(self.clippers, self.actors):
+            clipper.Update()
             filled_poly = clipper.GetOutput()
 
             if filled_poly is None or filled_poly.GetNumberOfCells() == 0:
-                # ocultar actor para que no participe en el render
                 actor.SetVisibility(False)
                 continue
 
-            # Si tiene células, asegurarnos que el actor esté visible
             actor.SetVisibility(True)
             actores_creados += 1
 
-            # Añadir el polydata recortado al append para calcular bounds
-            append_all.AddInputData(filled_poly)
+            b = filled_poly.GetBounds()
+
+            min_x = min(min_x, b[0])
+            max_x = max(max_x, b[1])
+            min_y = min(min_y, b[2])
+            max_y = max(max_y, b[3])
+            min_z = min(min_z, b[4])
+            max_z = max(max_z, b[5])
 
         if actores_creados == 0:
-            # misma conducta que tu original: imagen negra de 300x300 y return
-            img = _np.zeros((self.height, self.width, 3), dtype=_np.uint8)
+            img = np.zeros((self.height, self.width, 3), dtype=np.uint8)
             return img, pos, rot
 
-        # -------------------------------------------------
-        # Bounds combinados (igual que original)
-        # -------------------------------------------------
-        append_all.Update()
-        combined = append_all.GetOutput()
-        bounds = combined.GetBounds()
+        bounds = (min_x, max_x, min_y, max_y, min_z, max_z)
 
         dx_b = bounds[1] - bounds[0]
         dy_b = bounds[3] - bounds[2]
         dz_b = bounds[5] - bounds[4]
 
-        diagonal = _math.sqrt(dx_b*dx_b + dy_b*dy_b + dz_b*dz_b)
+        diagonal = math.sqrt(dx_b * dx_b + dy_b * dy_b + dz_b * dz_b)
         if diagonal < 1e-6:
             diagonal = 1.0
 
         # -------------------------------------------------
-        # Cámara (idéntica a original)
+        # Cámara
         # -------------------------------------------------
-        # Asegurarnos de usar la misma renWin que creamos en __init__
-        self.renWin.SetOffScreenRendering(1)
-        # tamaño (igual al original)
-        self.renWin.SetSize(self.width, self.height)
-
-        camera = self.ren.GetActiveCamera()
 
         cam_distance = diagonal * 2.0
         cam_pos = pos_np - up * cam_distance
 
-        camera.SetPosition(cam_pos.tolist())
-        focus_offset = 1  # ajustalo fino
+        self.camera.SetPosition(cam_pos.tolist())
+
+        focus_offset = 1
         new_focus = pos_np + forward * focus_offset
-        camera.SetFocalPoint(new_focus.tolist())
-        camera.SetViewUp(forward.tolist())
-        camera.SetParallelProjection(True)
+
+        self.camera.SetFocalPoint(new_focus.tolist())
+        self.camera.SetViewUp(forward.tolist())
+        self.camera.SetParallelProjection(True)
 
         scale = max(dx_b, dy_b) * 0.6
         if scale < 1e-3:
             scale = 0.5
 
-        camera.SetParallelScale(scale)
+        self.camera.SetParallelScale(scale)
 
         self.ren.ResetCameraClippingRange()
 
         # -------------------------------------------------
-        # Render (igual que original)
+        # Render
         # -------------------------------------------------
+
         self.renWin.Render()
 
         # -------------------------------------------------
-        # Capturar imagen (igual que original)
+        # Captura imagen
         # -------------------------------------------------
-        w2if = self.w2if  # persistente
-        w2if.SetInput(self.renWin)  # redundante pero mantiene idéntico el pipeline
-        w2if.SetInputBufferTypeToRGB()
-        w2if.ReadFrontBufferOff()
-        w2if.Modified()
-        w2if.Update()
 
-        vtk_image = w2if.GetOutput()
+        self.w2if.Modified()
+        self.w2if.Update()
+
+        vtk_image = self.w2if.GetOutput()
         dims = vtk_image.GetDimensions()
 
         vtk_array = vtk_image.GetPointData().GetScalars()

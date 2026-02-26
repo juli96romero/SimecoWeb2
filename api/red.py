@@ -595,6 +595,10 @@ class Pix2Pix(pl.LightningModule):
         return scaledImage 
 
     def hacerInferencia(self,img_generada):
+        if torch.cuda.is_available():
+            print("Haciendo inferencia en GPU")
+            self.hacerInferenciaFast(img_generada)
+            return
         
         self.gen.eval() # modelo en modo eval
         label = img_generada
@@ -621,29 +625,36 @@ class Pix2Pix(pl.LightningModule):
     
 
     def hacerInferenciaFast(self, img_generada):
-        # Configurar modelo en modo evaluación
-        self.gen.eval()
-        
-        with torch.no_grad():  # Evita calcular gradientes para inferencia
-            # Preprocesamiento en un solo paso
+
+        # Detectar device del modelo (CPU o GPU)
+        device = next(self.gen.parameters()).device
+
+        with torch.no_grad():
+
+            # Convertir máscara RGB a clases
             mask = reformat_label(img_generada)
+
+            # Transformación (resize 128x128 + tensor)
             transformed = test_transform(image=img_generada, mask=mask)
-            mask = transformed['mask']
-            
-            # Preparar tensor de entrada más eficientemente
-            mask_tensor = mask.float().unsqueeze(0).unsqueeze(0)  # (1, 1, H, W)
-            
-            # Inferencia
+            mask = transformed['mask']  # (H,W)
+
+            # Crear tensor 4D directamente y mover a device
+            mask_tensor = mask.float().unsqueeze(0).unsqueeze(0).to(device)
+
+            # Inferencia en GPU
             fake_image = self.gen(mask_tensor)
-            
-            # Post-procesamiento optimizado
-            fake_image_np = fake_image.squeeze(0).cpu().numpy()  # (C, H, W)
-            fake_image_np = np.transpose(fake_image_np, (1, 2, 0))  # (H, W, C)
-            
-            # Normalización y conversión a uint8 en un solo paso
-            fake_image_uint8 = ((fake_image_np * 0.5 + 0.5) * 255).astype(np.uint8)
-            
-            return fake_image_uint8
+
+            # Postprocesado en GPU (mantener en GPU lo máximo posible)
+            fake_image = fake_image.squeeze(0)  # (C,H,W)
+
+            # Reescalar de [-1,1] → [0,255] directamente en GPU
+            fake_image = (fake_image * 0.5 + 0.5) * 255.0
+            fake_image = fake_image.clamp(0, 255)
+
+            # Recién acá mover a CPU
+            fake_image_np = fake_image.permute(1, 2, 0).byte().cpu().numpy()
+
+            return fake_image_np
 
     
     def validation_step(self,input_path, output_path):

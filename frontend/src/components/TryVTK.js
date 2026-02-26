@@ -7,8 +7,11 @@ import BrightnessSlider from "./BrightnessSlider";
 
 const TryVTK = () => {
   const [imageData, setImageData] = useState(null);
-  const [imageData2, setImageData2] = useState(null); // Nueva imagen
-  const [showImage2, setShowImage2] = useState(false); // Estado para mostrar/ocultar imagen 2
+  const [imageData2, setImageData2] = useState(null); // Imagen secundaria (split)
+  const [imageOverlay, setImageOverlay] = useState(null); // Imagen superpuesta
+  const [showImage2, setShowImage2] = useState(false); // Mostrar/ocultar imagen secundaria
+  const [showOverlay, setShowOverlay] = useState(false); // Mostrar/ocultar superposición
+
   const [brightnessGeneral, setBrightnessGeneral] = useState(0);
   const [brightness1, setBrightness1] = useState(0);
   const [brightness2, setBrightness2] = useState(0);
@@ -19,7 +22,6 @@ const TryVTK = () => {
   const [brightness7, setBrightness7] = useState(0);
   const [brightness8, setBrightness8] = useState(0);
 
-  // Estado para almacenar la posición del actor especial
   const [specialActorPosition, setSpecialActorPosition] = useState([0, 0, 0]);
   const [specialActorRotation, setSpecialActorRotation] = useState([0, 0, 0]);
 
@@ -51,8 +53,11 @@ const TryVTK = () => {
     setBrightness7(0);
     setBrightness8(0);
 
-    setShowImage2(false); // Resetear también el estado de la imagen 2
-    setImageData2(null); // Limpiar la imagen 2
+    setShowImage2(false);
+    setImageData2(null);
+    setShowOverlay(false);
+    setImageOverlay(null);
+
     sendMessage("reset", "reset");
   };
 
@@ -67,7 +72,6 @@ const TryVTK = () => {
       console.log('rotation', data.rotation);
 
       if (data.position) {
-        // Asegúrate de que data.position es un array de 3 números
         if (Array.isArray(data.position)) {
           setSpecialActorPosition(data.position);
         } else {
@@ -76,11 +80,11 @@ const TryVTK = () => {
       }
 
       if (data.rotation) {
-        // Asegúrate de que data.position es un array de 3 números
-        if (Array.isArray(data.position)) {
+        // CORRECCIÓN: verificar data.rotation, no data.position
+        if (Array.isArray(data.rotation)) {
           setSpecialActorRotation(data.rotation);
         } else {
-          console.error("Rotation recibida no es un array válido:", data.position);
+          console.error("Rotación recibida no es un array válido:", data.rotation);
         }
       }
 
@@ -91,9 +95,13 @@ const TryVTK = () => {
         console.error("Received empty or undefined image_data");
       }
 
-      // Recibir la segunda imagen si está disponible
       if (data.image_data_2) {
         setImageData2(`data:image/png;base64,${data.image_data_2}`);
+      }
+
+      // Nueva imagen superpuesta
+      if (data.image_overlay) {
+        setImageOverlay(`data:image/png;base64,${data.image_overlay}`);
       }
     };
 
@@ -102,14 +110,12 @@ const TryVTK = () => {
     };
   }, []);
 
-  // Función para enviar mensajes
   const sendMessage = useCallback((direction = null, action = null) => {
     if (!chatSocket.current || chatSocket.current.readyState !== WebSocket.OPEN) {
       console.error("WebSocket no está conectado");
       return;
     }
 
-    // Mensaje especial para reset
     if (action === "reset") {
       console.log("Enviando mensaje RESET a través del WebSocket");
       chatSocket.current.send(
@@ -122,7 +128,6 @@ const TryVTK = () => {
       return;
     }
 
-    // Mensaje normal para otros casos
     console.log("Enviando mensaje a través del WebSocket");
     chatSocket.current.send(
       JSON.stringify({
@@ -140,13 +145,12 @@ const TryVTK = () => {
         direction: direction,
         action: action,
         show_image_2: showImage2,
+        show_overlay: showOverlay, // Nuevo estado incluido
       })
     );
-  }, [specialActorPosition, showImage2]);
+  }, [specialActorPosition, showImage2, showOverlay]);
 
-  // Función para manejar clics en las flechas
   const handleArrowClick = useCallback((direction, action) => {
-    // Enviar la dirección y acción a través del WebSocket
     sendMessage(direction, action);
   }, [sendMessage]);
 
@@ -159,17 +163,27 @@ const TryVTK = () => {
     });
   };
 
-  // Función para alternar la visualización de la segunda imagen
   const toggleImage2 = () => {
     setShowImage2(prev => !prev);
-    // No es necesario enviar mensaje inmediatamente, se enviará en el próximo ciclo
+  };
+
+  const toggleOverlay = () => {
+    setShowOverlay(prev => !prev);
   };
 
   return (
     <div className="app-container">
       <div className={`eco-viewport ${showImage2 ? "split" : "centered"}`}>
         <div className="eco-frame">
-          <ImageDisplay imageData={imageData} />
+          {/* Contenedor relativo para permitir superposición */}
+          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+            <ImageDisplay imageData={imageData} />
+            {showOverlay && imageOverlay && (
+              <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
+                <ImageDisplay imageData={imageOverlay} />
+              </div>
+            )}
+          </div>
         </div>
 
         {showImage2 && imageData2 && (
@@ -187,7 +201,7 @@ const TryVTK = () => {
           specialActorPosition={specialActorPosition}
           specialActorRotation={specialActorRotation}
         />
-        <div class="controls-wrapper"></div>
+        <div className="controls-wrapper">
           <div id="controls">
             <section className="controls-section">
               <h4>Simulación</h4>
@@ -202,15 +216,20 @@ const TryVTK = () => {
               >
                 👁 Imagen base
               </button>
+              {/* Nuevo botón para superposición */}
+              <button
+                className={`toggle-button ${showOverlay ? 'active' : ''}`}
+                onClick={toggleOverlay}
+              >
+                🔲 Superposición
+              </button>
             </section>
 
-            {/* TRANSDUCTOR */}
             <section className="controls-section">
               <h4>Transductor</h4>
               <ArrowButtons onArrowClick={handleArrowClick} />
             </section>
 
-            {/* AJUSTES DE IMAGEN */}
             <section className="controls-section">
               <h4>Ajustes de imagen</h4>
               <BrightnessSlider
@@ -227,11 +246,19 @@ const TryVTK = () => {
                     const newBrightness = [...brightnessRefs.current];
                     newBrightness[i + 1] = value;
                     brightnessRefs.current = newBrightness;
+                    // También actualizar el estado correspondiente si es necesario
+                    // (opcional, pero mantener consistencia)
+                    const setters = [
+                      setBrightness1, setBrightness2, setBrightness3, setBrightness4,
+                      setBrightness5, setBrightness6, setBrightness7, setBrightness8
+                    ];
+                    if (setters[i]) setters[i](value);
                   }}
                 />
               ))}
             </section>
           </div>
+        </div>
       </div>
     </div>
   );
