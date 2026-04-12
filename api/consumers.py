@@ -78,12 +78,8 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
         self._total_requests += 1
         
         try:
-            parse_start = time.time()
-            data = json.loads(text_data)
-            parse_time = time.time() - parse_start
-            logging.info(f"Parse time: {parse_time*1000:.2f}ms")
-
             # Extraccin de datos
+            data = json.loads(text_data)
             extract_start = time.time()
             self.direction = data.get('direction')
             special_position = data.get('specialActorPosition')
@@ -93,7 +89,7 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
                 brightness_key = f'brightness{i}' if i > 0 else 'brightness'
                 self.brillo[i] = int(data.get(brightness_key, 0))
             extract_time = time.time() - extract_start
-            logging.info(f"Data extraction time: {extract_time*1000:.2f}ms")
+            logging.info(f"Parse and extraction time: {extract_time*1000:.2f}ms")
 
             # Movimiento del transductor
             move_time = 0
@@ -135,7 +131,7 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
             else:
                 imagen_recorte_vtk = None
 
-
+            clipped = cv2.flip(clipped, 0)
             # Inferencia de red neuronal
             inference_time = 0
             if clipped is not None:
@@ -160,7 +156,6 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
 
                 # Acomodar FOV
                 fov_start = time.time()
-                print("shape de imagen brillo ajustado: ", imagen_brillo_ajustado.shape)
                 image_fov = acomodarFOV_ultra_rapido(imagen_brillo_ajustado)
                 fov_time = time.time() - fov_start
                 logging.info(f"  FOV processing: {fov_time*1000:.2f}ms")
@@ -462,24 +457,44 @@ def ajustar_brillo_con_franjas(imagen, brillo):
 
     return imagen_ajustada
 
-
 def clip_segmented_image(image):
 
     img = image.copy().astype(np.float32)
+    h, w, _ = img.shape
 
-    # Crear máscara (todo oscuro al inicio)
-    mask = np.ones((300, 300), dtype=np.float32) * 0.5
+    # Convertir a escala de grises
+    gray = np.mean(img, axis=2)
 
-    # Cuadrante 8 (fila 3, columna 2)
-    mask[200:300, 100:200] = 1.0
+    # Columnas fijas (100 a 200)
+    col_start, col_end = 100, 200
 
-    # Aplicar máscara a los 3 canales
+    # Umbral para detectar "no negro"
+    threshold = 30
+
+    region = gray[:, col_start:col_end]
+    mask_non_black = region > threshold
+
+    coords = np.argwhere(mask_non_black)
+
+    if len(coords) == 0:
+        # fallback al cuadrante original
+        y_start = 200
+    else:
+        # píxel más bajo
+        y_max = coords[:, 0].max()
+        y_start = max(0, y_max - 100)
+
+    # Crear máscara base
+    mask = np.ones((h, w), dtype=np.float32) * 0.5
+
+    # Activar zona detectada (100x100)
+    mask[y_start:y_start+100, col_start:col_end] = 1.0
+
+    # Aplicar máscara
     resultado = img * mask[:, :, np.newaxis]
-
-    # Volver a uint8
     resultado = np.clip(resultado, 0, 255).astype(np.uint8)
 
-    # Guardar el cuadrante 8 como "centro"
-    centro = image[200:300, 100:200]
+    # Mantener mismo output que antes
+    centro = image[y_start:y_start+100, col_start:col_end]
 
     return centro, resultado

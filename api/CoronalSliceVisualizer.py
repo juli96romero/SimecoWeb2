@@ -3,25 +3,10 @@ import numpy as np
 from vtk.util import numpy_support
 
 class CoronalSliceVisualizer:
-    """
-    Visualizador de cortes coronales a partir de mallas VTK y un controlador
-    que proporciona posición y orientación (pitch, yaw, roll) en radianes.
 
-    El plano coronal se define con origen = posición del controlador y normal = up,
-    donde up se obtiene de la base ortonormal construida desde la rotación.
-    """
 
     def __init__(self, meshes, width, height):
-        """
-        Parámetros
-        ----------
-        meshes : list of (vtkPolyData, tuple)
-            Lista de tuplas (malla, color) donde color es (r,g,b) en [0,1].
-        width : int
-            Ancho de la imagen de salida en píxeles.
-        height : int
-            Alto de la imagen de salida en píxeles.
-        """
+
         self.meshes = meshes
         self.width = width
         self.height = height
@@ -50,12 +35,7 @@ class CoronalSliceVisualizer:
         self.camera.SetParallelProjection(True)
 
     def _euler_to_matrix(self, pitch, yaw, roll):
-        """
-        Construye la matriz de rotación 3x3 (right‑handed) con el orden:
-        Rz(roll) @ Ry(yaw) @ Rx(pitch)
 
-        Devuelve una matriz numpy de 3x3.
-        """
         # Rotación alrededor de X (pitch)
         Rx = np.array([[1, 0, 0],
                        [0, np.cos(pitch), -np.sin(pitch)],
@@ -71,25 +51,7 @@ class CoronalSliceVisualizer:
         return Rz @ Ry @ Rx
 
     def slice_and_fill_mesh_vtk(self, mesh, origin, normal):
-        """
-        Corta una malla con un plano y rellena la intersección para obtener
-        una superficie (polígono relleno). Si no hay intersección devuelve
-        un vtkPolyData vacío.
 
-        Parámetros
-        ----------
-        mesh : vtkPolyData
-            Malla de entrada.
-        origin : array_like (3,)
-            Punto de origen del plano.
-        normal : array_like (3,)
-            Vector normal del plano.
-
-        Devuelve
-        --------
-        vtkPolyData
-            Geometría de la intersección rellena (triángulos) o vacía.
-        """
         # Plano de corte
         plane = vtk.vtkPlane()
         plane.SetOrigin(origin)
@@ -114,26 +76,7 @@ class CoronalSliceVisualizer:
         return triangulator.GetOutput()
 
     def render_from_controller(self, controller_mov):
-        """
-        Genera una imagen del corte coronal según la posición y orientación
-        actuales del controlador.
 
-        Parámetros
-        ----------
-        controller_mov : objeto con métodos:
-            get_current_position() -> (x, y, z)
-            get_current_rotation() -> (pitch, yaw, roll)  # radianes
-
-        Devuelve
-        --------
-        image_numpy_uint8 : numpy.ndarray
-            Imagen RGB de tamaño (height, width, 3) con valores uint8.
-        position : tuple
-            (x, y, z) usados para el corte.
-        rotation : tuple
-            (pitch, yaw, roll) usados para el corte.
-        """
-        # Obtener datos del controlador
         
         position = controller_mov.get_current_position()
         pitch, yaw, roll = controller_mov.get_current_orientation()

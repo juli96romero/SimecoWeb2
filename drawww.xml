@@ -1,0 +1,87 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Flujo Horizontal">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Navegador -->
+        <mxCell id="browser" value="Navegador&#xa;Envía: action + brillo&#xa;Recibe: imagen IA" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="300" width="200" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- Inicio -->
+        <mxCell id="start" value="Inicio Loop&#xa;(20 FPS)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="300" y="320" width="140" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- Recibir -->
+        <mxCell id="receive" value="Recibir parámetros" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="500" y="330" width="200" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Decision Action -->
+        <mxCell id="hasAction" value="¿Existe action?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="750" y="310" width="180" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- Controller -->
+        <mxCell id="controller" value="Módulo Controller&#xa;- reset&#xa;- move&#xa;- rotate&#xa;(mantiene posición y rotación)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="260" width="260" height="120" as="geometry"/>
+        </mxCell>
+
+        <!-- Render -->
+        <mxCell id="render" value="Render&#xa;(posición + rotación)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="420" width="220" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Clip -->
+        <mxCell id="clip" value="Clip&#xa;(zona cercana a posición)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="420" width="220" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Inferencia -->
+        <mxCell id="inference" value="INFERENCIA IA&#xa;CAJA NEGRA&#xa;Input: imagen recortada&#xa;Output: imagen IA" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;strokeWidth=3;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="1550" y="390" width="300" height="120" as="geometry"/>
+        </mxCell>
+
+        <!-- Decision Brillo -->
+        <mxCell id="hasBrillo" value="¿Hay ajuste&#xa;de brillo?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="1900" y="380" width="180" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- Brillo -->
+        <mxCell id="brillo" value="Ajustar brillo" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="2150" y="360" width="200" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- FOV -->
+        <mxCell id="fov" value="Transformar a FOV" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="2150" y="460" width="200" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Enviar -->
+        <mxCell id="send" value="Enviar imagen al navegador" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="2450" y="410" width="220" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Flechas -->
+        <mxCell id="e1" edge="1" parent="1" source="browser" target="start" style="endArrow=block;strokeWidth=2;"/>
+        <mxCell id="e2" edge="1" parent="1" source="start" target="receive" style="endArrow=block;strokeWidth=2;"/>
+        <mxCell id="e3" edge="1" parent="1" source="receive" target="hasAction" style="endArrow=block;strokeWidth=2;"/>
+        <mxCell id="e4" edge="1" parent="1" source="hasAction" target="controller" style="endArrow=block;strokeWidth=2;"/>
+        <mxCell id="e5" edge="1" parent="1" source="hasAction" target="render" style="endArrow=block;strokeWidth=2;"/>
+        <mxCell id="e6" edge="1" parent="1" source="controller" target="render" style="endArrow=block;strokeWidth=2;"/>
+        <mxCell id="e7" edge="1" parent="1" source="render" target="clip" style="endArrow=block;strokeWidth=2;"/>
+        <mxCell id="e8" edge="1" parent="1" source="clip" target="inference" style="endArrow=block;strokeWidth=2;"/>
+        <mxCell id="e9" edge="1" parent="1" source="inference" target="hasBrillo" style="endArrow=block;strokeWidth=2;"/>
+        <mxCell id="e10" edge="1" parent="1" source="hasBrillo" target="brillo" style="endArrow=block;strokeWidth=2;"/>
+        <mxCell id="e11" edge="1" parent="1" source="hasBrillo" target="fov" style="endArrow=block;strokeWidth=2;"/>
+        <mxCell id="e12" edge="1" parent="1" source="brillo" target="fov" style="endArrow=block;strokeWidth=2;"/>
+        <mxCell id="e13" edge="1" parent="1" source="fov" target="send" style="endArrow=block;strokeWidth=2;"/>
+        <mxCell id="e14" edge="1" parent="1" source="send" target="browser" style="endArrow=block;strokeWidth=2;"/>
+        <mxCell id="loop" edge="1" parent="1" source="send" target="start" style="dashed=1;endArrow=block;strokeWidth=2;strokeColor=#82b366;"/>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
