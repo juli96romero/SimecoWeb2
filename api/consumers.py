@@ -63,7 +63,6 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
         if not self.mallas:
             self.mallas = views.getMallas()
 
-        # 🔥 CREAR MOTOR VTK UNA SOLA VEZ
         if not hasattr(self, "vtk_engine"):
             self.vtk_engine = FastVtkVisualizer(self.mallas, width=300, height=300)
         self.visualizer = CoronalSliceVisualizer(self.mallas, width=300, height=300)
@@ -484,6 +483,7 @@ def clip_segmented_image(image):
         y_max = coords[:, 0].max()
         y_start = max(0, y_max - 100)
 
+    y_start = 150 #fijo para que se pegue a la piel
     # Crear máscara base
     mask = np.ones((h, w), dtype=np.float32) * 0.5
 
@@ -493,6 +493,7 @@ def clip_segmented_image(image):
     # Aplicar máscara
     resultado = img * mask[:, :, np.newaxis]
     resultado = np.clip(resultado, 0, 255).astype(np.uint8)
+
 
     # Mantener mismo output que antes
     centro = image[y_start:y_start+100, col_start:col_end]
