@@ -23,7 +23,6 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
 from django.http import HttpResponse
-from . import cartesianRemap as remap
 
 cfg = dict(
     seed = 2023,

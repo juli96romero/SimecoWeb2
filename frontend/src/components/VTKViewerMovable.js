@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from "react";
+import React, { useEffect, useRef } from "react";
 import "@kitware/vtk.js/Rendering/Profiles/Geometry";
 import vtkFullScreenRenderWindow from "@kitware/vtk.js/Rendering/Misc/FullScreenRenderWindow";
 import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
@@ -18,21 +18,6 @@ const VTKViewerMovable = ({
   const transductorRef = useRef(null);
   const skinRef = useRef(null);
   const isInitialized = useRef(false);
-
-  // Función para obtener la posición del actor especial
-  const getSpecialActorPosition = useCallback(() => {
-    if (transductorRef.current) {
-      return transductorRef.current.getPosition();
-    }
-    return null;
-  }, []);
-
-  const getSpecialActorRotation = useCallback(() => {
-    if (transductorRef.current) {
-      return transductorRef.current.getOrientation();
-    }
-    return null;
-  }, []);
 
   useEffect(() => {
     const fetchStlFiles = async () => {
@@ -74,8 +59,7 @@ const VTKViewerMovable = ({
         camera.setViewUp(0, -1, 0); // El -1 en Y indica que tu escena está "invertida" respecto al estándar vtk
         
         const interactor = renderWindow.getInteractor();
-        window.myCamera = renderer.getActiveCamera();
-        context.current = { 
+        context.current = {
           fullScreenRenderer, 
           renderWindow, 
           renderer,

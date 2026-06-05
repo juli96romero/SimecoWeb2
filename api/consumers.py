@@ -1,28 +1,21 @@
 import json
-from channels.generic.websocket import WebsocketConsumer
-from api.fastVtkVisualizer import FastVtkVisualizer
-from .red import main  
+import time
+import logging
 import base64
 import pickle
-import numpy as np
-from . import views
-from .cartesianRemap import acomodarFOV_ultra_rapido
 from io import BytesIO
-from PIL import Image, ImageEnhance
-import os
 from os import path, listdir
+
 import cv2
-from .red_2 import main as main2
-from . import controller_mov as mov
-from . import fastVtkVisualizer as vtk_visualizer
-import time
-import logging
-import time
-import logging
-import json
+import numpy as np
 from channels.generic.websocket import WebsocketConsumer
-from api.cartesianRemap import fov_optimizer  
-import polarTransform
+from PIL import Image, ImageEnhance
+
+from .red import main
+from .red_2 import main as main2
+from . import views
+from . import controller_mov as mov
+from .cartesianRemap import acomodarFOV_ultra_rapido, fov_optimizer
 from .bitstream_optimizer import BitStreamOptimizer
 from .CoronalSliceVisualizer import CoronalSliceVisualizer
 input_path = "./data/validation/labels"
@@ -61,10 +54,8 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
         self.accept()
 
         if not self.mallas:
-            self.mallas = views.getMallas()
+            self.mallas = views.get_meshes()
 
-        if not hasattr(self, "vtk_engine"):
-            self.vtk_engine = FastVtkVisualizer(self.mallas, width=300, height=300)
         self.visualizer = CoronalSliceVisualizer(self.mallas, width=300, height=300)
         fov_optimizer.precompute_for_128x128()
 
@@ -352,7 +343,7 @@ def formatAsBitStream(image_data): #RV
         image_base64 = base64.b64encode(buffer.getvalue()).decode()
     return image_base64
 
-class combinedSlice(WebsocketConsumer):
+class CombinedSliceConsumer(WebsocketConsumer):
     
     def connect(self):
         import pickle

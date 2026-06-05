@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import VTKViewer from "./VTKViewerMovable";
+import VTKViewerMovable from "./VTKViewerMovable";
 import ImageDisplay from "./ImageDisplay";
 import ControlButtons from "./ControlButtons";
 import ArrowButtons from "./ArrowButtons";
@@ -194,7 +194,7 @@ const TryVTK = () => {
       </div>
       <div className="half-screen half-screen-right">
         <div ref={vtkContainerRef} className="vtk-container" />
-        <VTKViewer
+        <VTKViewerMovable
           containerRef={vtkContainerRef}
           onSpecialActorPositionChange={setSpecialActorPosition}
           onSpecialActorRotationChange={setSpecialActorRotation}

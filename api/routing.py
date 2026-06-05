@@ -8,5 +8,5 @@ websocket_urlpatterns = [
     re_path(r'ws/socket-server-image/', consumers.ImageConsumer.as_asgi()),
     re_path(r'ws/socket-pickle/', consumers.PickleHandler.as_asgi()),
     re_path(r'ws/brightness/', consumers.Brightness.as_asgi()), 
-    re_path(r'ws/socket-combinedSlice/', consumers.combinedSlice.as_asgi()),
+    re_path(r'ws/socket-combinedSlice/', consumers.CombinedSliceConsumer.as_asgi()),
 ]

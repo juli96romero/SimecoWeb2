@@ -1,10 +1,10 @@
 import React from "react";
 
-const ControlButtons = ({ onGenerate, onReset }) => {
+const ControlButtons = ({ isRunning, onGenerate, onReset }) => {
   return (
     <div className="button-container">
       <button id="sendMessageButton" onClick={onGenerate}>
-        Generar
+        {isRunning ? "Detener" : "Generar"}
       </button>
       <button id="resetButton" onClick={onReset}>
         Reset
