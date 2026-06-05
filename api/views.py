@@ -22,8 +22,8 @@ mesh_colors = {
     'pelvis': (151/255.0, 151/255.0, 147/255.0),      # gris
     'spleen': (1.0, 0, 1.0),                          # magenta
     'liver': (100/255.0, 0, 100/255.0),               # violeta oscuro
-    'surrenalgland': (1.0, 1.0, 0),                   # amarillo
-    'kidney': (0, 1.0, 1.0),                          # cian
+    'surrenalgland': (0, 1.0, 1.0),                   # cian
+    'kidney': (1.0, 1.0, 0),                          # amarillo
     'gallbladder': (0, 1.0, 0),                       # verde
     'pancreas': (0, 0, 1.0),                          # azul
     'artery': (0, 0, 1),                              # rojo
