@@ -11,7 +11,7 @@ class CoronalSliceVisualizer:
         self.width = width
         self.height = height
 
-        # Configuración del renderizador off‑screen
+        # off-screen renderer setup
         self.renderer = vtk.vtkRenderer()
         self.renderer.SetBackground(0, 0, 0)
 
@@ -20,8 +20,8 @@ class CoronalSliceVisualizer:
         self.render_window.SetOffScreenRendering(1)
         self.render_window.SetSize(width, height)
 
-        # Crear actores (uno por malla) con mappers vacíos inicialmente
-        self.actors = []  # cada elemento: (actor, malla_original)
+        # create actors (one per mesh) with empty mappers initially
+        self.actors = []  # each item: (actor, original_mesh)
         for mesh, color in meshes:
             mapper = vtk.vtkPolyDataMapper()
             actor = vtk.vtkActor()
@@ -30,21 +30,21 @@ class CoronalSliceVisualizer:
             self.renderer.AddActor(actor)
             self.actors.append((actor, mesh))
 
-        # Configurar cámara en modo proyección paralela
+        # configure the camera in parallel projection mode
         self.camera = self.renderer.GetActiveCamera()
         self.camera.SetParallelProjection(True)
 
     def _euler_to_matrix(self, pitch, yaw, roll):
 
-        # Rotación alrededor de X (pitch)
+        # rotation around X (pitch)
         Rx = np.array([[1, 0, 0],
                        [0, np.cos(pitch), -np.sin(pitch)],
                        [0, np.sin(pitch),  np.cos(pitch)]])
-        # Rotación alrededor de Y (yaw)
+        # rotation around Y (yaw)
         Ry = np.array([[ np.cos(yaw), 0, np.sin(yaw)],
                        [0, 1, 0],
                        [-np.sin(yaw), 0, np.cos(yaw)]])
-        # Rotación alrededor de Z (roll)
+        # rotation around Z (roll)
         Rz = np.array([[np.cos(roll), -np.sin(roll), 0],
                        [np.sin(roll),  np.cos(roll), 0],
                        [0, 0, 1]])
@@ -52,12 +52,12 @@ class CoronalSliceVisualizer:
 
     def slice_and_fill_mesh_vtk(self, mesh, origin, normal):
 
-        # Plano de corte
+        # cutting plane
         plane = vtk.vtkPlane()
         plane.SetOrigin(origin)
         plane.SetNormal(normal)
 
-        # Generar las líneas de intersección
+        # generate the intersection lines
         cutter = vtk.vtkCutter()
         cutter.SetInputData(mesh)
         cutter.SetCutFunction(plane)
@@ -65,11 +65,11 @@ class CoronalSliceVisualizer:
 
         contour_lines = cutter.GetOutput()
         if contour_lines.GetNumberOfCells() == 0:
-            # Sin intersección
+            # no intersection
             empty = vtk.vtkPolyData()
             return empty
 
-        # Rellenar los contornos cerrados para obtener una superficie
+        # fill the closed contours to get a surface
         triangulator = vtk.vtkContourTriangulator()
         triangulator.SetInputData(contour_lines)
         triangulator.Update()
@@ -80,11 +80,10 @@ class CoronalSliceVisualizer:
         
         position = controller_mov.get_current_position()
         pitch, yaw, roll = controller_mov.get_current_orientation()
-        print("Obteniendo posición ", position)
-        print("Obteniendo orientación (pitch, yaw, roll) en radianes: ", (pitch, yaw, roll))
-        # Construir base ortonormal
-        # Dentro de render_from_controller, antes de llamar a _euler_to_matrix:
-        pitch = np.radians(pitch)   # convierte grados → radianes
+        print("Getting position ", position)
+        print("Getting orientation (pitch, yaw, roll) in radians: ", (pitch, yaw, roll))
+        # build the orthonormal basis
+        pitch = np.radians(pitch)   # converts degrees to radians
         yaw   = np.radians(yaw)
         roll  = np.radians(roll)
         R = self._euler_to_matrix(pitch, yaw, roll)
@@ -97,20 +96,20 @@ class CoronalSliceVisualizer:
         right   = R @ right_local
         up      = R @ up_local
 
-        # Normalizar (por si acaso, aunque R sea de rotación pura)
+        # normalize (just in case, even though R is a pure rotation)
         forward = forward / np.linalg.norm(forward)
         right   = right / np.linalg.norm(right)
         up      = up / np.linalg.norm(up)
 
         offset = -1
         origin = np.array(position) + forward * offset
-        normal = up  # normal del plano coronal
+        normal = up  # normal of the coronal plane
 
-        # Lista para bounds de geometrías visibles
+        # list of bounds for visible geometries
         visible_bounds = []
         visible_count = 0
 
-        # Aplicar slice a cada malla y actualizar actores
+        # slice each mesh and update its actor
         for actor, mesh in self.actors:
             sliced = self.slice_and_fill_mesh_vtk(mesh, origin, normal)
             if sliced.GetNumberOfCells() == 0:
@@ -119,67 +118,67 @@ class CoronalSliceVisualizer:
                 actor.VisibilityOn()
                 actor.GetMapper().SetInputData(sliced)
                 bounds = sliced.GetBounds()
-                # Verificar que el bounds sea válido (xmin <= xmax)
+                # check that the bounds are valid (xmin <= xmax)
                 if bounds[1] >= bounds[0]:
                     visible_bounds.append(bounds)
                     visible_count += 1
 
-        # Si no hay nada visible, devolver imagen negra
+        # if nothing is visible, return a black image
         if visible_count == 0:
             black_img = np.zeros((self.height, self.width, 3), dtype=np.uint8)
             return black_img, position, (pitch, yaw, roll)
 
-        # Combinar bounds globales
+        # combine global bounds
         global_bounds = list(visible_bounds[0])
         for bounds in visible_bounds[1:]:
             for i in range(6):
-                if i % 2 == 0:  # mínimo
+                if i % 2 == 0:  # minimum
                     global_bounds[i] = min(global_bounds[i], bounds[i])
-                else:            # máximo
+                else:            # maximum
                     global_bounds[i] = max(global_bounds[i], bounds[i])
 
-        # Diagonal del bounding box para calcular distancia de cámara
+        # bounding box diagonal to compute the camera distance
         dx = global_bounds[1] - global_bounds[0]
         dy = global_bounds[3] - global_bounds[2]
         dz = global_bounds[5] - global_bounds[4]
         diagonal = np.sqrt(dx*dx + dy*dy + dz*dz)
-        distancia = 2.0 * diagonal
+        distance = 2.0 * diagonal
 
-        # Calcular extensiones en el plano (direcciones right y forward)
-        # Para ello transformamos los 8 vértices del bounding box
-        # al sistema local con ejes (right, up, forward)
+        # compute the in-plane extents (right and forward directions)
+        # for that we transform the 8 vertices of the bounding box
+        # into the local system with axes (right, up, forward)
         corners = []
         for x in (global_bounds[0], global_bounds[1]):
             for y in (global_bounds[2], global_bounds[3]):
                 for z in (global_bounds[4], global_bounds[5]):
                     corners.append(np.array([x, y, z]))
 
-        # Matriz inversa (transpuesta) para pasar de mundo a local
+        # inverse (transpose) matrix to go from world to local
         R_inv = R.T
         local_corners = [R_inv @ (c - origin) for c in corners]
 
-        # Componentes right (x local) y forward (z local)
+        # right (local x) and forward (local z) components
         right_vals = [c[0] for c in local_corners]
         forward_vals = [c[2] for c in local_corners]
         width_bb = max(right_vals) - min(right_vals)
         height_bb = max(forward_vals) - min(forward_vals)
 
-        # Configurar cámara
-        self.camera.SetPosition(origin - up * distancia)
+        # configure the camera
+        self.camera.SetPosition(origin - up * distance)
         self.camera.SetFocalPoint(origin)
         self.camera.SetViewUp(forward)
         self.camera.SetParallelScale(max(width_bb, height_bb) * 0.6)
 
-        # Renderizar
+        # render
         self.render_window.Render()
 
-        # Capturar imagen
+        # capture image
         w2if = vtk.vtkWindowToImageFilter()
         w2if.SetInput(self.render_window)
         w2if.Update()
         vtk_image = w2if.GetOutput()
 
-        # Convertir a numpy array (asumimos 3 canales RGB)
+        # convert to numpy array (we assume 3 RGB channels)
         vtk_array = vtk_image.GetPointData().GetScalars()
         np_image = numpy_support.vtk_to_numpy(vtk_array)
         dims = vtk_image.GetDimensions()  # (width, height, 1)

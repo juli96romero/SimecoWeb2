@@ -574,11 +574,11 @@ class Pix2Pix(pl.LightningModule):
         
         return scaledImage 
 
-    def hacerInferencia(self,img_generada):
-        
+    def run_inference(self, generated_image):
+
         self.gen.eval() # modelo en modo eval
-        label = img_generada
-    
+        label = generated_image
+
         mask = reformat_label(label)
 
         transformed = test_transform(image=label, mask=mask)

@@ -143,7 +143,7 @@ body, html {
   background: black;
   display: flex;
   justify-content: center;
-  align-items: center; /* 👈 ancla abajo */
+  align-items: center; /* ancla abajo */
   position: relative;
 }
 
@@ -163,7 +163,7 @@ body, html {
   border-left: 1px solid rgba(255,255,255,0.05);
   padding: 10px;
   height: 100vh;
-  overflow: hidden; /* 🔑 importante */
+  overflow: hidden;
 }
 
 .button-container {
@@ -201,7 +201,7 @@ body, html {
 
 .vtk-container {
   width: 100%;
-  flex: 1;              /* 🔑 ocupa el espacio disponible */
+  flex: 1;              /* ocupa el espacio disponible */
   min-height: 250px;    /* opcional, evita que se aplaste */
   position: relative;
 }
@@ -215,7 +215,7 @@ body, html {
   flex-shrink: 0; /* Prevent shrinking */
   display: flex;
   gap: 15px; /* Space between columns */
-  max-height: 45vh;     /* 🔑 no se va de pantalla */
+  max-height: 45vh;     /* no se va de pantalla */
   overflow-y: auto; 
 }
 

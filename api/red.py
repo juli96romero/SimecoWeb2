@@ -593,15 +593,14 @@ class Pix2Pix(pl.LightningModule):
         
         return scaledImage 
 
-    def hacerInferencia(self,img_generada):
+    def run_inference(self, generated_image):
         if torch.cuda.is_available():
             print("Haciendo inferencia en GPU")
-            self.hacerInferenciaFast(img_generada)
-            return
-        
+            return self.run_inference_fast(generated_image)
+
         self.gen.eval() # modelo en modo eval
-        label = img_generada
-    
+        label = generated_image
+
         mask = reformat_label(label)
 
         transformed = test_transform(image=label, mask=mask)
@@ -623,34 +622,28 @@ class Pix2Pix(pl.LightningModule):
         return fake_image 
     
 
-    def hacerInferenciaFast(self, img_generada):
+    def run_inference_fast(self, generated_image):
 
-        # Detectar device del modelo (CPU o GPU)
         device = next(self.gen.parameters()).device
 
         with torch.no_grad():
 
-            # Convertir máscara RGB a clases
-            mask = reformat_label(img_generada)
+            mask = reformat_label(generated_image)
 
-            # Transformación (resize 128x128 + tensor)
-            transformed = test_transform(image=img_generada, mask=mask)
+            transformed = test_transform(image=generated_image, mask=mask)
             mask = transformed['mask']  # (H,W)
 
-            # Crear tensor 4D directamente y mover a device
             mask_tensor = mask.float().unsqueeze(0).unsqueeze(0).to(device)
 
-            # Inferencia en GPU
             fake_image = self.gen(mask_tensor)
 
-            # Postprocesado en GPU (mantener en GPU lo máximo posible)
             fake_image = fake_image.squeeze(0)  # (C,H,W)
 
-            # Reescalar de [-1,1] → [0,255] directamente en GPU
+            # Reescalar de [-1,1] a [0,255]
             fake_image = (fake_image * 0.5 + 0.5) * 255.0
             fake_image = fake_image.clamp(0, 255)
 
-            # Recién acá mover a CPU
+            # recien aca lo paso a CPU
             fake_image_np = fake_image.permute(1, 2, 0).byte().cpu().numpy()
 
             return fake_image_np

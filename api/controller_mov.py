@@ -3,7 +3,7 @@ import math
 _controller = None
 
 def get_bounds():
-    """Bounds fijos de la malla del cuerpo (skin)"""
+    """Fixed bounds of the body (skin) mesh"""
     return (-1.01, 1.02, -0.64, 0.63, -0.86, 0.72)
 
 def init_controller(scale_factor=1.05, y_additional_scale=0.10):
@@ -49,22 +49,22 @@ class EllipsoidMovementController:
     def __init__(self, bounds, scale_factor=1.05, y_additional_scale=0.10):
         self.bounds = bounds
 
-        # Centro real del abdomen
+        # actual center of the abdomen
         self.center_x = (bounds[0] + bounds[1]) / 2.0
         self.center_y = (bounds[2] + bounds[3]) / 2.0
         self.center_z = (bounds[4] + bounds[5]) / 2.0
 
-        # Radios del elipsoide
+        # ellipsoid radii
         self.x_radius = (bounds[1] - bounds[0]) / 2.0 * scale_factor
         self.y_radius = (bounds[3] - bounds[2]) / 2.0 * (scale_factor + y_additional_scale)
         self.z_radius = (bounds[5] - bounds[4]) / 2.0 * scale_factor
 
-        # Parámetros esféricos
+        # spherical parameters
         self.y_offset = 0.0
-        self.y_limit = self.y_radius * 0.6  # ajustable           # latitud (altura)
-        self.phi = -math.pi / 2         # longitud (arranca en frente +Z)
+        self.y_limit = self.y_radius * 0.6  # adjustable, latitude (height)
+        self.phi = -math.pi / 2         # longitude (starts at the front +Z)
 
-        # Rotaciones locales
+        # local rotations
         self.local_pitch = 0.0
         self.local_yaw = 0.0
         self.local_roll = 0.0
@@ -86,7 +86,7 @@ class EllipsoidMovementController:
         elif direction == "down":
             self.y_offset += self.delta_angle * self.y_radius
 
-        # Clamp
+        # clamp
         self.y_offset = max(-self.y_limit, min(self.y_limit, self.y_offset))
 
         return self.calculate_position()
@@ -113,7 +113,7 @@ class EllipsoidMovementController:
             self.local_roll += self.delta_local
 
         else:
-            raise ValueError(f"Dirección inválida: {direction}")
+            raise ValueError(f"Invalid direction: {direction}")
 
         return {
             "position": self.calculate_position(),
@@ -137,15 +137,15 @@ class EllipsoidMovementController:
 
         x, y, z = self.calculate_position()
 
-        # Centro proyectado al mismo Y actual (ignora diferencia vertical)
+        # center projected to the current Y (ignores the vertical difference)
         dx = self.center_x - x
         dz = self.center_z - z
-        dy = 0.0  # ← CLAVE: no mirar hacia arriba/abajo automáticamente
+        dy = 0.0  # do not look up/down automatically
 
-        # yaw alrededor de Y
+        # yaw around Y
         yaw = math.atan2(-dx, -dz)
 
-        # pitch solo viene de rotación local
+        # pitch only comes from local rotation
         pitch = 0.0
 
         pitch += self.local_pitch
@@ -160,7 +160,6 @@ class EllipsoidMovementController:
 
     def reset_position(self):
 
-        self.theta = 0.0
         self.phi = math.pi / 2
 
         self.local_pitch = 0.0

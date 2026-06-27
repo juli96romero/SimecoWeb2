@@ -2,194 +2,201 @@ import json
 import time
 import logging
 import base64
-import pickle
 from io import BytesIO
 from os import path, listdir
 
 import cv2
 import numpy as np
 from channels.generic.websocket import WebsocketConsumer
-from PIL import Image, ImageEnhance
+from PIL import Image
 
-from .red import main
-from .red_2 import main as main2
+from .red import main as load_model_128
+from .red_2 import main as load_model_256
 from . import views
 from . import controller_mov as mov
-from .cartesianRemap import acomodarFOV_ultra_rapido, fov_optimizer
+from .cartesianRemap import apply_fov_remap, fov_optimizer
 from .bitstream_optimizer import BitStreamOptimizer
 from .CoronalSliceVisualizer import CoronalSliceVisualizer
-input_path = "./data/validation/labels"
-output_path = "./results/" 
-#Levanto las dos redes
-model = main("self")
-model2 = main2("self")
 
-brillo = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+input_path = "./data/validation/labels"
+output_path = "./results/"
+
+# Lazy model loading: they are built on first real use, not at import time,
+# so the server startup stays cheap.
+_model_128 = None
+_model_256 = None
+
+
+def get_model_128():
+    global _model_128
+    if _model_128 is None:
+        _model_128 = load_model_128("self")
+    return _model_128
+
+
+def get_model_256():
+    global _model_256
+    if _model_256 is None:
+        _model_256 = load_model_256("self")
+    return _model_256
+
+
 bitstream_optimizer = BitStreamOptimizer()
 
 
-# Configurar logging
-logging.basicConfig(level=logging.INFO, 
+logging.basicConfig(level=logging.INFO,
                    format='%(asctime)s - %(levelname)s - %(message)s',
                    handlers=[
                        logging.FileHandler("performance.log"),
                        logging.StreamHandler()
                    ])
 
-class Socket_Principal_FrontEnd(WebsocketConsumer):
-    brillo = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+class MainFrontendConsumer(WebsocketConsumer):
+    brightness_levels = [0, 0, 0, 0, 0, 0, 0, 0, 0]
     direction = None
     _last_processing_time = 0
     _total_requests = 0
     _total_processing_time = 0
-    mallas = None
+    meshes = None
     visualizer = None
 
     def connect(self):
-
-
-        with open('api/mask_v1.pickle', 'rb') as f:
-            ptSettings = pickle.load(f)
-
         self.accept()
 
-        if not self.mallas:
-            self.mallas = views.get_meshes()
+        if not self.meshes:
+            self.meshes = views.get_meshes()
 
-        self.visualizer = CoronalSliceVisualizer(self.mallas, width=300, height=300)
+        self.visualizer = CoronalSliceVisualizer(self.meshes, width=300, height=300)
         fov_optimizer.precompute_for_128x128()
 
         self.send(text_data=json.dumps({
             'type': 'connection_established',
             'message': 'You are now connected'
         }))
+
     def receive(self, text_data):
         start_time = time.time()
         self._total_requests += 1
-        
+
         try:
-            # Extraccin de datos
+            # data extraction
             data = json.loads(text_data)
             extract_start = time.time()
             self.direction = data.get('direction')
-            special_position = data.get('specialActorPosition')
-            
-            # Extraer brillos
+
+            # extract brightness levels (overall gain + 8 bands)
             for i in range(9):
                 brightness_key = f'brightness{i}' if i > 0 else 'brightness'
-                self.brillo[i] = int(data.get(brightness_key, 0))
+                self.brightness_levels[i] = int(data.get(brightness_key, 0))
             extract_time = time.time() - extract_start
             logging.info(f"Parse and extraction time: {extract_time*1000:.2f}ms")
 
-            # Movimiento del transductor
+            # transducer movement
             move_time = 0
-            nueva_posicion = mov.get_current_position()
-            nueva_rotacion = mov.get_current_orientation()
-            
+            current_position = mov.get_current_position()
+            current_rotation = mov.get_current_orientation()
+
             if self.direction == "reset":
                 reset_start = time.time()
-                nueva_posicion = mov.reset_position()
+                current_position = mov.reset_position()
                 move_time = time.time() - reset_start
                 logging.info(f"Reset time: {move_time*1000:.2f}ms")
             elif self.direction:
                 move_start = time.time()
                 if data["action"] == "move":
-                    nueva_posicion = mov.move_transducer(self.direction)
+                    current_position = mov.move_transducer(self.direction)
                 elif data["action"] == "rotate":
-                    nueva_rotacion = mov.rotate_transducer(self.direction)
+                    current_rotation = mov.rotate_transducer(self.direction)
                 move_time = time.time() - move_start
                 logging.info(f"Move time: {move_time*1000:.2f}ms")
 
-            # Procesamiento VTK 
-            vtk_time = 0
-            if not self.direction:  # Solo procesar VTK si no hay movimiento
-                vtk_start = time.time()
-                #imagen_recorte_vtk, pos, rot = self.vtk_engine.vtk_visualization_images(mov, image_rotation_deg=0)
-                imagen_recorte_vtk, pos, rot = self.visualizer.render_from_controller(mov)
-                vtk_time = time.time() - vtk_start
-                logging.info(f"VTK processing time: {vtk_time*1000:.2f}ms")
-            else:
-                imagen_recorte_vtk = None
+            # VTK processing (we always render: after moving/resetting the
+            # controller we want to see the new slice, and it also ensures
+            # clipped is defined for the rest of the pipeline)
+            vtk_start = time.time()
+            vtk_slice_image, _, _ = self.visualizer.render_from_controller(mov)
+            vtk_time = time.time() - vtk_start
+            logging.info(f"VTK processing time: {vtk_time*1000:.2f}ms")
 
-            # Clippeo de imagen segmentada
-            clipping_time = 0
-            if imagen_recorte_vtk is not None:
+            # clip the segmented image
+            clipped = None
+            if vtk_slice_image is not None:
                 clipping_start = time.time()
-                clipped, imagen_recorte_vtk = clip_segmented_image(imagen_recorte_vtk)
+                clipped, vtk_slice_image = clip_segmented_image(vtk_slice_image)
                 clipping_time = time.time() - clipping_start
                 logging.info(f"Clipping time: {clipping_time*1000:.2f}ms")
-            else:
-                imagen_recorte_vtk = None
+                clipped = cv2.flip(clipped, 0)
 
-            clipped = cv2.flip(clipped, 0)
-            # Inferencia de red neuronal
-            inference_time = 0
+            # neural network inference
             if clipped is not None:
                 inference_start = time.time()
-                image_data = model.hacerInferencia(img_generada=clipped)
+                inference_image = get_model_128().run_inference(generated_image=clipped)
                 inference_time = time.time() - inference_start
                 logging.info(f"Inference time: {inference_time*1000:.2f}ms")
             else:
-                image_data = None
+                inference_image = None
 
-            # Procesamiento posterior de imagen
-            process_time = 0
+            # image post-processing
             image_base64 = None
-            if image_data is not None:
+            fov_image = None
+            if inference_image is not None:
                 process_start = time.time()
 
-                # Ajuste de brillo
+                # brightness adjustment
                 brightness_start = time.time()
-                imagen_brillo_ajustado = ajustar_brillo_con_franjas(image_data, self.brillo)
+                brightness_adjusted = apply_banded_brightness(inference_image, self.brightness_levels)
                 brightness_time = time.time() - brightness_start
                 logging.info(f"  Brightness adjustment: {brightness_time*1000:.2f}ms")
 
-                # Acomodar FOV
+                # apply FOV
                 fov_start = time.time()
-                image_fov = acomodarFOV_ultra_rapido(imagen_brillo_ajustado)
+                fov_image = apply_fov_remap(brightness_adjusted)
                 fov_time = time.time() - fov_start
                 logging.info(f"  FOV processing: {fov_time*1000:.2f}ms")
 
-                # Formatear a bitstream
+                # format as bitstream
                 bitstream_start = time.time()
-                #image_base64 = bitstream_optimizer.formatAsBitStream_optimized(image_fov[::-1]) # Flipped
-                image_base64 = bitstream_optimizer.formatAsBitStream_optimized(image_fov)
+                image_base64 = bitstream_optimizer.formatAsBitStream_optimized(fov_image)
                 bitstream_time = time.time() - bitstream_start
                 logging.info(f"  Bitstream conversion: {bitstream_time*1000:.2f}ms")
 
-                process_time = time.time() - process_start
-
-            # Tiempo total
+            # total time
             total_time = time.time() - start_time
             self._total_processing_time += total_time
-            
-            # Log del rendimiento
+
+            # performance log
             logging.info(f"TOTAL REQUEST TIME: {total_time*1000:.2f}ms")
             logging.info(f"Average processing time: {self._total_processing_time/self._total_requests*1000:.2f}ms")
             logging.info(f"Estimated FPS: {1/total_time if total_time > 0 else 0:.1f}")
             logging.info("-" * 50)
 
-            # Acomodar FOV imagen superpuesta
-            superpuesta = None
-            fov_start = time.time()
+            # overlay image (segmented clip on top of the ultrasound image)
+            overlay_result = None
+            if clipped is not None and image_base64 is not None:
+                fov_start = time.time()
+                overlay = cv2.resize(clipped, (128, 128))
+                overlay = apply_fov_remap(overlay)
+                overlay_result = cv2.addWeighted(fov_image, 1.0, overlay, 0.5, 0)
+                fov_time = time.time() - fov_start
+                logging.info(f"  FOV processing overlay: {fov_time*1000:.2f}ms")
 
-            superpuesta = cv2.resize(clipped, (128, 128))
-            superpuesta = acomodarFOV_ultra_rapido(superpuesta)
-            resultado = cv2.addWeighted(image_fov, 1.0, superpuesta, 0.5, 0)
-            fov_time = time.time() - fov_start
-            logging.info(f"  FOV processing superpuesta: {fov_time*1000:.2f}ms")
-
-            # Enviar respuesta
+            # send response
             response_data = {
-                "image_data": image_base64,
-                "image_data_2": bitstream_optimizer.formatAsBitStream_optimized(imagen_recorte_vtk),
-                "position": nueva_posicion,
-                "processing_time": total_time,
+                "imageData": image_base64,
+                "segmentationImageData": (
+                    bitstream_optimizer.formatAsBitStream_optimized(vtk_slice_image)
+                    if vtk_slice_image is not None else None
+                ),
+                "position": current_position,
+                "processingTime": total_time,
                 "direction": self.direction,
-                "rotation": nueva_rotacion,
-                "image_overlay": bitstream_optimizer.formatAsBitStream_optimized(resultado)
+                "rotation": current_rotation,
+                "overlayImageData": (
+                    bitstream_optimizer.formatAsBitStream_optimized(overlay_result)
+                    if overlay_result is not None else None
+                )
             }
-            
+
             self.send(text_data=json.dumps(response_data))
 
         except Exception as e:
@@ -198,83 +205,64 @@ class Socket_Principal_FrontEnd(WebsocketConsumer):
             self.send(text_data=json.dumps({"error": str(e)}))
 
 
-    def adjust_brightness(self, image_base64, brightness_factor):
-        image_data = base64.b64decode(image_base64)
-        image = Image.open(BytesIO(image_data))
-        
-        enhancer = ImageEnhance.Brightness(image)
-        adjusted_image = enhancer.enhance(brightness_factor)
-
-        buffered = BytesIO()
-        adjusted_image.save(buffered, format="PNG")
-        return base64.b64encode(buffered.getvalue()).decode("utf-8")
-    
-
 class ImageConsumer(WebsocketConsumer):
-    
+
     def connect(self):
         self.accept()
-        
+
         self.send(text_data=json.dumps({
             'type': 'connection_established',
             'message': 'You are now connected'
         }))
 
     def receive(self, text_data):
-        
+
         image_data = views.vtk_visualization_image(text_data)
-        # Convert image data to uint8
-        image_base64= formatAsBitStream(image_data=image_data)
+        # convert image data to uint8
+        image_base64 = formatAsBitStream(image_data=image_data)
 
         self.send(text_data=json.dumps({"image_data": image_base64}))
 
 
 class PickleHandler(WebsocketConsumer):
 
-    indice = 0
-    
+    index = 0
+
     def connect(self):
-        import pickle
-
-        # Cargar el archivo pickle de forma segura
-        with open('api/mask_v1.pickle', 'rb') as f:
-            ptSettings = pickle.load(f)
-
         self.accept()
-        
-        # Pre-computar transformaciones FOV una sola vez para mejorar el rendimiento
+
+        # precompute FOV transforms once to improve performance
         fov_optimizer.precompute_for_128x128()
-        
+
         self.send(text_data=json.dumps({
             'type': 'connection_established',
             'message': 'You are now connected'
         }))
 
     def receive(self, text_data):
-        
+
         input_path = "./results"
         filenames = listdir(input_path)
-        
-        if self.indice>=len(filenames):
-            self.indice = 0
-        image = cv2.imread(path.join(input_path, filenames[self.indice]))
+
+        if self.index >= len(filenames):
+            self.index = 0
+        image = cv2.imread(path.join(input_path, filenames[self.index]))
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         image = image.astype(np.uint8)
 
-        image_data = acomodarFOV_ultra_rapido(image)
+        image_data = apply_fov_remap(image)
 
-        image_base64= formatAsBitStream(image_data=image_data)
+        image_base64 = formatAsBitStream(image_data=image_data)
 
         self.send(text_data=json.dumps({"image_data": image_base64}))
 
 
+class Principal128(WebsocketConsumer):  # RV: image-based visualization from the folder
+    index = 0
 
-class Principal128(WebsocketConsumer): #RV Visualizacion basada en imagenes de la carpeta
-    indice = 0
-    
     def connect(self):
         self.accept()
-        
+
         self.send(text_data=json.dumps({
             'type': 'connection_established',
             'message': 'You are now connected'
@@ -285,26 +273,25 @@ class Principal128(WebsocketConsumer): #RV Visualizacion basada en imagenes de l
         input_path = "./data/validation/labels"
 
         filenames = listdir(input_path)
-        
-        image = cv2.imread(path.join(input_path, filenames[self.indice]))
+
+        image = cv2.imread(path.join(input_path, filenames[self.index]))
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        
-        self.indice+=1
-        if self.indice>=len(filenames):
-            self.indice=0
-        image_data = model.hacerInferencia(img_generada=image)
+
+        self.index += 1
+        if self.index >= len(filenames):
+            self.index = 0
+        image_data = get_model_128().run_inference(generated_image=image)
         image_base64 = formatAsBitStream(image_data=image_data)
 
         self.send(text_data=json.dumps({"image_data": image_base64}))
 
 
+class Principal256(WebsocketConsumer):  # RV: image-based visualization from the folder using the 256px network
+    index = 0
 
-class Principal256(WebsocketConsumer):#RV Visualizacion basada en imagenes de la carpeta con la red de 256px
-    indice = 0
-    
     def connect(self):
         self.accept()
-        
+
         self.send(text_data=json.dumps({
             'type': 'connection_established',
             'message': 'You are now connected'
@@ -315,48 +302,42 @@ class Principal256(WebsocketConsumer):#RV Visualizacion basada en imagenes de la
 
         filenames = listdir(input_path)
 
-        image = cv2.imread(path.join(input_path, filenames[self.indice]))
+        image = cv2.imread(path.join(input_path, filenames[self.index]))
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        
-        self.indice+=1
-        if self.indice>=len(filenames):
-            self.indice=0
-        image_data = model2.hacerInferencia(img_generada=image)
-        
+
+        self.index += 1
+        if self.index >= len(filenames):
+            self.index = 0
+        image_data = get_model_256().run_inference(generated_image=image)
+
         image_base64 = formatAsBitStream(image_data=image_data)
-        
+
         self.send(text_data=json.dumps({"image_data": image_base64}))
 
-def formatAsBitStream(image_data): #RV
+def formatAsBitStream(image_data):  # RV
     image_data = image_data.astype(np.uint8)
-        
-    # Reshape the image data to (height, width, channels)
+
+    # reshape the image data to (height, width, channels)
     height, width, channels = image_data.shape
     image_data_reshaped = image_data.reshape((height, width, channels))
 
-    # Convert the image array to PIL Image
+    # convert the image array to a PIL Image
     image = Image.fromarray(image_data_reshaped)
 
-    # Convert the image to base64
+    # convert the image to base64
     with BytesIO() as buffer:
         image.save(buffer, format="PNG")
         image_base64 = base64.b64encode(buffer.getvalue()).decode()
     return image_base64
 
 class CombinedSliceConsumer(WebsocketConsumer):
-    
+
     def connect(self):
-        import pickle
-
-        # Cargar el archivo pickle de forma segura
-        with open('api/mask_v1.pickle', 'rb') as f:
-            ptSettings = pickle.load(f)
-
         self.accept()
-        
-        # Pre-computar transformaciones FOV una sola vez para mejorar el rendimiento
+
+        # precompute FOV transforms once to improve performance
         fov_optimizer.precompute_for_128x128()
-        
+
         self.send(text_data=json.dumps({
             'type': 'connection_established',
             'message': 'You are now connected'
@@ -364,27 +345,27 @@ class CombinedSliceConsumer(WebsocketConsumer):
 
     def receive(self, text_data):
 
-        #genero la imagen con VTK para usar como label 
-        imagen_recorte_vtk = views.vtk_visualization_image(text_data)
-        
-        #le mando la imagen al model para que haga una inferencia y me la devuelva
-        image_data = model.hacerInferencia(img_generada=imagen_recorte_vtk)
+        # generate the image with VTK to use as label
+        vtk_slice_image = views.vtk_visualization_image(text_data)
 
-        #convierto esa imagen a cartesianas
-        image_data = acomodarFOV_ultra_rapido(image_data)
+        # send the image to the model so it returns an inference
+        image_data = get_model_128().run_inference(generated_image=vtk_slice_image)
 
-        image_base64= formatAsBitStream(image_data=image_data)
-        
+        # convert that image to cartesian coordinates
+        image_data = apply_fov_remap(image_data)
+
+        image_base64 = formatAsBitStream(image_data=image_data)
+
         self.send(text_data=json.dumps({"image_data": image_base64}))
 
 
 class Brightness(WebsocketConsumer):
-    indice = 0
-    brillo = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+    index = 0
+    brightness_levels = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+
     def connect(self):
         self.accept()
-        
-        
+
         self.send(text_data=json.dumps({
             'type': 'connection_established',
             'message': 'You are now connected'
@@ -395,98 +376,79 @@ class Brightness(WebsocketConsumer):
         input_path = "./data/validation/labels"
 
         filenames = listdir(input_path)
-        
-        image = cv2.imread(path.join(input_path, filenames[self.indice]))
+
+        image = cv2.imread(path.join(input_path, filenames[self.index]))
         # By default OpenCV uses BGR color space, we need to convert the image to RGB color space.
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        
-        self.indice+=1
-        if self.indice>=len(filenames):
-            self.indice=0
-        image_data = model.hacerInferencia(img_generada=image)
+
+        self.index += 1
+        if self.index >= len(filenames):
+            self.index = 0
+        image_data = get_model_128().run_inference(generated_image=image)
 
         try:
-            # Asegrate de convertir el valor a entero
+            # make sure to convert the value to an integer
             data = json.loads(text_data)
-            self.brillo[0] = int(data.get('brightness', 50))
-            self.brillo[1] = int(data.get('brightness1', 50))
-            self.brillo[2] = int(data.get('brightness2', 50))
-            self.brillo[3] = int(data.get('brightness3', 50))
-            self.brillo[4] = int(data.get('brightness4', 50))
+            self.brightness_levels[0] = int(data.get('brightness', 50))
+            self.brightness_levels[1] = int(data.get('brightness1', 50))
+            self.brightness_levels[2] = int(data.get('brightness2', 50))
+            self.brightness_levels[3] = int(data.get('brightness3', 50))
+            self.brightness_levels[4] = int(data.get('brightness4', 50))
         except (ValueError, TypeError):
-            print("El valor de brillo no es valido. Usando el valor por defecto")
+            print("Invalid brightness value. Using the default value")
 
-        imagen_brillo_ajustado = ajustar_brillo_con_franjas(image_data,self.brillo)
+        brightness_adjusted = apply_banded_brightness(image_data, self.brightness_levels)
 
-        # Convert image data to uint8
-        image_base64 = formatAsBitStream(image_data=imagen_brillo_ajustado)
+        # convert image data to uint8
+        image_base64 = formatAsBitStream(image_data=brightness_adjusted)
 
         self.send(text_data=json.dumps({"image_data": image_base64}))
 
 
-def ajustar_brillo_con_franjas(imagen, brillo):
-    
-    # Convertir la imagen a tipo int16 para evitar desbordamiento en las operaciones
-    imagen_float = imagen.astype(np.int16)
+def apply_banded_brightness(image, brightness_levels):
 
-    # Aplicar el ajuste general de brillo
-    imagen_ajustada = imagen_float + brillo[0]
+    # convert the image to int16 to avoid overflow during the operations
+    image_int = image.astype(np.int16)
 
-    # Calcular el nmero de filas y determinar las franjas
-    filas, columnas = imagen.shape[:2]
-    franja_altura = filas // 8  # Ahora tenemos 8 franjas
+    # apply the overall brightness (gain) adjustment
+    adjusted_image = image_int + brightness_levels[0]
 
-    # Aplicar ajustes de brillo especficos por franja
+    # compute the number of rows and determine the bands
+    rows, cols = image.shape[:2]
+    band_height = rows // 8  # 8 bands
+
+    # apply the per-band brightness adjustments
     for i in range(8):
-        inicio = i * franja_altura
-        fin = (i + 1) * franja_altura if i < 7 else filas  # La ltima franja llega hasta el final
-        imagen_ajustada[inicio:fin, :] += brillo[i + 1]  # brillo[1] a brillo[8]
+        start = i * band_height
+        end = (i + 1) * band_height if i < 7 else rows  # the last band reaches the end
+        adjusted_image[start:end, :] += brightness_levels[i + 1]  # brightness[1] to brightness[8]
 
-    # Clip para mantener los valores dentro del rango [0, 255]
-    imagen_ajustada = np.clip(imagen_ajustada, 0, 255).astype(np.uint8)
+    # clip to keep the values within the range [0, 255]
+    adjusted_image = np.clip(adjusted_image, 0, 255).astype(np.uint8)
 
-    return imagen_ajustada
+    return adjusted_image
 
 def clip_segmented_image(image):
 
     img = image.copy().astype(np.float32)
     h, w, _ = img.shape
 
-    # Convertir a escala de grises
-    gray = np.mean(img, axis=2)
-
-    # Columnas fijas (100 a 200)
+    # fixed columns (100 to 200)
     col_start, col_end = 100, 200
 
-    # Umbral para detectar "no negro"
-    threshold = 30
+    y_start = 150  # fixed so it sticks to the skin
 
-    region = gray[:, col_start:col_end]
-    mask_non_black = region > threshold
-
-    coords = np.argwhere(mask_non_black)
-
-    if len(coords) == 0:
-        # fallback al cuadrante original
-        y_start = 200
-    else:
-        # píxel más bajo
-        y_max = coords[:, 0].max()
-        y_start = max(0, y_max - 100)
-
-    y_start = 150 #fijo para que se pegue a la piel
-    # Crear máscara base
+    # base mask
     mask = np.ones((h, w), dtype=np.float32) * 0.5
 
-    # Activar zona detectada (100x100)
+    # enable the detected zone (100x100)
     mask[y_start:y_start+100, col_start:col_end] = 1.0
 
-    # Aplicar máscara
-    resultado = img * mask[:, :, np.newaxis]
-    resultado = np.clip(resultado, 0, 255).astype(np.uint8)
+    # apply the mask
+    result = img * mask[:, :, np.newaxis]
+    result = np.clip(result, 0, 255).astype(np.uint8)
 
+    # keep the same output as before
+    center = image[y_start:y_start+100, col_start:col_end]
 
-    # Mantener mismo output que antes
-    centro = image[y_start:y_start+100, col_start:col_end]
-
-    return centro, resultado
+    return center, result

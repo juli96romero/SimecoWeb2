@@ -18,10 +18,8 @@ urlpatterns = [
     path('front/', include('frontend.urls'), name='SimecoWEB'),
 
     path('api/update_visualization/', views.update_visualization, name='api_update_visualization'),
-    path('api/mover-transductor/', views.mover_transductor, name='api_mover_transducer'),
+    path('api/mover-transductor/', views.move_transducer, name='api_mover_transducer'),
     path('api/update_normal/', views.update_normal, name='api_update_normal'),
     path('api/update_position/', views.update_position, name='api_update_position'),
     path('api/stl-files/', views.list_stl_files, name='api_list_stl_files'),
-    path('api/stl-transductor/', views.list_transducer_stl_files, name='api_list_transducer_stl_files'),
-    path('api/obj-files/', views.list_obj_files, name='api_list_obj_files'),
 ]

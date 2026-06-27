@@ -4,7 +4,7 @@ const ArrowButtons = ({ onArrowClick }) => {
   return (
     <div className="transducer-controls">
 
-      {/* MOVIMIENTO */}
+      {/* movement */}
       <div className="control-block">
         <div className="control-title">Mover</div>
 
@@ -19,7 +19,7 @@ const ArrowButtons = ({ onArrowClick }) => {
         </div>
       </div>
 
-      {/* ROTACIÓN */}
+      {/* rotation */}
       <div className="control-block">
         <div className="control-title">Rotar</div>
 

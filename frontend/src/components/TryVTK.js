@@ -7,56 +7,57 @@ import BrightnessSlider from "./BrightnessSlider";
 
 const TryVTK = () => {
   const [imageData, setImageData] = useState(null);
-  const [imageData2, setImageData2] = useState(null); // Imagen secundaria (split)
-  const [imageOverlay, setImageOverlay] = useState(null); // Imagen superpuesta
-  const [showImage2, setShowImage2] = useState(false); // Mostrar/ocultar imagen secundaria
-  const [showOverlay, setShowOverlay] = useState(false); // Mostrar/ocultar superposición
+  const [segmentationImageData, setSegmentationImageData] = useState(null); // VTK slice (split)
+  const [overlayImageData, setOverlayImageData] = useState(null); // overlay image
+  const [showSecondaryImage, setShowSecondaryImage] = useState(false); // show/hide VTK slice
+  const [showOverlay, setShowOverlay] = useState(false); // show/hide overlay
 
-  const [brightnessGeneral, setBrightnessGeneral] = useState(0);
-  const [brightness1, setBrightness1] = useState(0);
-  const [brightness2, setBrightness2] = useState(0);
-  const [brightness3, setBrightness3] = useState(0);
-  const [brightness4, setBrightness4] = useState(0);
-  const [brightness5, setBrightness5] = useState(0);
-  const [brightness6, setBrightness6] = useState(0);
-  const [brightness7, setBrightness7] = useState(0);
-  const [brightness8, setBrightness8] = useState(0);
+  const [generalGain, setGeneralGain] = useState(0);
+  const [bandGain1, setBandGain1] = useState(0);
+  const [bandGain2, setBandGain2] = useState(0);
+  const [bandGain3, setBandGain3] = useState(0);
+  const [bandGain4, setBandGain4] = useState(0);
+  const [bandGain5, setBandGain5] = useState(0);
+  const [bandGain6, setBandGain6] = useState(0);
+  const [bandGain7, setBandGain7] = useState(0);
+  const [bandGain8, setBandGain8] = useState(0);
 
-  const [specialActorPosition, setSpecialActorPosition] = useState([0, 0, 0]);
-  const [specialActorRotation, setSpecialActorRotation] = useState([0, 0, 0]);
+  const [transducerPosition, setTransducerPosition] = useState([0, 0, 0]);
+  const [transducerRotation, setTransducerRotation] = useState([0, 0, 0]);
 
-  const brightnessRefs = useRef([
-    brightnessGeneral,
-    brightness1,
-    brightness2,
-    brightness3,
-    brightness4,
-    brightness5,
-    brightness6,
-    brightness7,
-    brightness8,
+  const brightnessLevelsRef = useRef([
+    generalGain,
+    bandGain1,
+    bandGain2,
+    bandGain3,
+    bandGain4,
+    bandGain5,
+    bandGain6,
+    bandGain7,
+    bandGain8,
   ]);
 
   const vtkContainerRef = useRef(null);
   const chatSocket = useRef(null);
-  const buttonState = useRef(false);
+  const isLoopRunning = useRef(false);
   const [isRunning, setIsRunning] = useState(false);
 
   const resetValues = () => {
-    setBrightnessGeneral(0);
-    setBrightness1(0);
-    setBrightness2(0);
-    setBrightness3(0);
-    setBrightness4(0);
-    setBrightness5(0);
-    setBrightness6(0);
-    setBrightness7(0);
-    setBrightness8(0);
+    setGeneralGain(0);
+    setBandGain1(0);
+    setBandGain2(0);
+    setBandGain3(0);
+    setBandGain4(0);
+    setBandGain5(0);
+    setBandGain6(0);
+    setBandGain7(0);
+    setBandGain8(0);
+    brightnessLevelsRef.current = [0, 0, 0, 0, 0, 0, 0, 0, 0];
 
-    setShowImage2(false);
-    setImageData2(null);
+    setShowSecondaryImage(false);
+    setSegmentationImageData(null);
     setShowOverlay(false);
-    setImageOverlay(null);
+    setOverlayImageData(null);
 
     sendMessage("reset", "reset");
   };
@@ -68,40 +69,38 @@ const TryVTK = () => {
 
     chatSocket.current.onmessage = (e) => {
       const data = JSON.parse(e.data);
-      console.log('posicion recibida en tryvtk', data.position);
-      console.log('rotation', data.rotation);
+      console.log("position received in tryvtk", data.position);
+      console.log("rotation", data.rotation);
 
       if (data.position) {
         if (Array.isArray(data.position)) {
-          setSpecialActorPosition(data.position);
+          setTransducerPosition(data.position);
         } else {
-          console.error("Posición recibida no es un array válido:", data.position);
+          console.error("Received position is not a valid array:", data.position);
         }
       }
 
       if (data.rotation) {
-        // CORRECCIÓN: verificar data.rotation, no data.position
         if (Array.isArray(data.rotation)) {
-          setSpecialActorRotation(data.rotation);
+          setTransducerRotation(data.rotation);
         } else {
-          console.error("Rotación recibida no es un array válido:", data.rotation);
+          console.error("Received rotation is not a valid array:", data.rotation);
         }
       }
 
-      if (data.image_data) {
-        setImageData(`data:image/png;base64,${data.image_data}`);
-        if (buttonState.current) sendMessage();
+      if (data.imageData) {
+        setImageData(`data:image/jpeg;base64,${data.imageData}`);
+        if (isLoopRunning.current) sendMessage();
       } else {
-        console.error("Received empty or undefined image_data");
+        console.error("Received empty or undefined imageData");
       }
 
-      if (data.image_data_2) {
-        setImageData2(`data:image/png;base64,${data.image_data_2}`);
+      if (data.segmentationImageData) {
+        setSegmentationImageData(`data:image/jpeg;base64,${data.segmentationImageData}`);
       }
 
-      // Nueva imagen superpuesta
-      if (data.image_overlay) {
-        setImageOverlay(`data:image/png;base64,${data.image_overlay}`);
+      if (data.overlayImageData) {
+        setOverlayImageData(`data:image/jpeg;base64,${data.overlayImageData}`);
       }
     };
 
@@ -112,83 +111,92 @@ const TryVTK = () => {
 
   const sendMessage = useCallback((direction = null, action = null) => {
     if (!chatSocket.current || chatSocket.current.readyState !== WebSocket.OPEN) {
-      console.error("WebSocket no está conectado");
+      console.error("WebSocket is not connected");
       return;
     }
 
     if (action === "reset") {
-      console.log("Enviando mensaje RESET a través del WebSocket");
+      console.log("Sending RESET message through the WebSocket");
       chatSocket.current.send(
         JSON.stringify({
           direction: "reset",
           action: "reset",
-          message: "reset"
+          message: "reset",
         })
       );
       return;
     }
 
-    console.log("Enviando mensaje a través del WebSocket");
+    console.log("Sending message through the WebSocket");
     chatSocket.current.send(
       JSON.stringify({
         message: "message",
-        brightness: brightnessRefs.current[0],
-        brightness1: brightnessRefs.current[1],
-        brightness2: brightnessRefs.current[2],
-        brightness3: brightnessRefs.current[3],
-        brightness4: brightnessRefs.current[4],
-        brightness5: brightnessRefs.current[5],
-        brightness6: brightnessRefs.current[6],
-        brightness7: brightnessRefs.current[7],
-        brightness8: brightnessRefs.current[8],
-        specialActorPosition: specialActorPosition,
+        brightness: brightnessLevelsRef.current[0],
+        brightness1: brightnessLevelsRef.current[1],
+        brightness2: brightnessLevelsRef.current[2],
+        brightness3: brightnessLevelsRef.current[3],
+        brightness4: brightnessLevelsRef.current[4],
+        brightness5: brightnessLevelsRef.current[5],
+        brightness6: brightnessLevelsRef.current[6],
+        brightness7: brightnessLevelsRef.current[7],
+        brightness8: brightnessLevelsRef.current[8],
         direction: direction,
         action: action,
-        show_image_2: showImage2,
-        show_overlay: showOverlay, // Nuevo estado incluido
       })
     );
-  }, [specialActorPosition, showImage2, showOverlay]);
+  }, []);
 
   const handleArrowClick = useCallback((direction, action) => {
     sendMessage(direction, action);
   }, [sendMessage]);
 
   const toggleGenerate = () => {
-    setIsRunning(prev => {
+    setIsRunning((prev) => {
       const next = !prev;
-      buttonState.current = next;
+      isLoopRunning.current = next;
       sendMessage();
       return next;
     });
   };
 
-  const toggleImage2 = () => {
-    setShowImage2(prev => !prev);
+  const toggleSecondaryImage = () => {
+    setShowSecondaryImage((prev) => !prev);
   };
 
   const toggleOverlay = () => {
-    setShowOverlay(prev => !prev);
+    setShowOverlay((prev) => !prev);
   };
+
+  const handleGainChange = (index, value) => {
+    const updatedLevels = [...brightnessLevelsRef.current];
+    updatedLevels[index] = value;
+    brightnessLevelsRef.current = updatedLevels;
+    // resend to refresh the image even if the transducer is idle
+    sendMessage();
+  };
+
+  const bandGainSetters = [
+    setBandGain1, setBandGain2, setBandGain3, setBandGain4,
+    setBandGain5, setBandGain6, setBandGain7, setBandGain8,
+  ];
 
   return (
     <div className="app-container">
-      <div className={`eco-viewport ${showImage2 ? "split" : "centered"}`}>
+      <div className={`eco-viewport ${showSecondaryImage ? "split" : "centered"}`}>
         <div className="eco-frame">
-          {/* Contenedor relativo para permitir superposición */}
-          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+          <div style={{ position: "relative", width: "100%", height: "100%" }}>
             <ImageDisplay imageData={imageData} />
-            {showOverlay && imageOverlay && (
-              <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
-                <ImageDisplay imageData={imageOverlay} />
+            {showOverlay && overlayImageData && (
+              <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }}>
+                <ImageDisplay imageData={overlayImageData} />
               </div>
             )}
           </div>
         </div>
 
-        {showImage2 && imageData2 && (
+        {showSecondaryImage && segmentationImageData && (
           <div className="eco-secondary">
-            <ImageDisplay imageData={imageData2} />
+            <ImageDisplay imageData={segmentationImageData} />
           </div>
         )}
       </div>
@@ -196,10 +204,10 @@ const TryVTK = () => {
         <div ref={vtkContainerRef} className="vtk-container" />
         <VTKViewerMovable
           containerRef={vtkContainerRef}
-          onSpecialActorPositionChange={setSpecialActorPosition}
-          onSpecialActorRotationChange={setSpecialActorRotation}
-          specialActorPosition={specialActorPosition}
-          specialActorRotation={specialActorRotation}
+          onTransducerPositionChange={setTransducerPosition}
+          onTransducerRotationChange={setTransducerRotation}
+          transducerPosition={transducerPosition}
+          transducerRotation={transducerRotation}
         />
         <div className="controls-wrapper">
           <div id="controls">
@@ -211,17 +219,16 @@ const TryVTK = () => {
                 onReset={resetValues}
               />
               <button
-                className={`toggle-button ${showImage2 ? 'active' : ''}`}
-                onClick={toggleImage2}
+                className={`toggle-button ${showSecondaryImage ? "active" : ""}`}
+                onClick={toggleSecondaryImage}
               >
-                👁 Imagen base
+                Imagen base
               </button>
-              {/* Nuevo botón para superposición */}
               <button
-                className={`toggle-button ${showOverlay ? 'active' : ''}`}
+                className={`toggle-button ${showOverlay ? "active" : ""}`}
                 onClick={toggleOverlay}
               >
-                🔲 Superposición
+                Superposición
               </button>
             </section>
 
@@ -234,25 +241,20 @@ const TryVTK = () => {
               <h4>Ajustes de imagen</h4>
               <BrightnessSlider
                 label="Ganancia"
-                value={brightnessGeneral}
-                onChange={setBrightnessGeneral}
+                value={generalGain}
+                onChange={(value) => {
+                  setGeneralGain(value);
+                  handleGainChange(0, value);
+                }}
               />
               {[...Array(8)].map((_, i) => (
                 <BrightnessSlider
                   key={i}
                   label={`Filtro ${i + 1}`}
-                  value={brightnessRefs.current[i + 1]}
+                  value={brightnessLevelsRef.current[i + 1]}
                   onChange={(value) => {
-                    const newBrightness = [...brightnessRefs.current];
-                    newBrightness[i + 1] = value;
-                    brightnessRefs.current = newBrightness;
-                    // También actualizar el estado correspondiente si es necesario
-                    // (opcional, pero mantener consistencia)
-                    const setters = [
-                      setBrightness1, setBrightness2, setBrightness3, setBrightness4,
-                      setBrightness5, setBrightness6, setBrightness7, setBrightness8
-                    ];
-                    if (setters[i]) setters[i](value);
+                    if (bandGainSetters[i]) bandGainSetters[i](value);
+                    handleGainChange(i + 1, value);
                   }}
                 />
               ))}

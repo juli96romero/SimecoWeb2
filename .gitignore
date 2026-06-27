@@ -1,4 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Django
+db.sqlite3
+db.sqlite3-journal
+
+# Logs
+*.log
+
+# Datasets y modelos (pesados)
 /data/
+*.ckpt
 *.cktp
 epoch=500-step=4008
-epoch=500-step=4008.cktp
+epoch=500-step=4008.ckpt
+
+# Dependencias Node y build del frontend
+node_modules/
+frontend/node_modules/
+frontend/build/
+frontend/dist/
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+ENV/
+
+# Sistema operativo / editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -9,13 +9,13 @@ import meshColors from "./meshColors";
 
 const VTKViewerMovable = ({
   containerRef,
-  onSpecialActorPositionChange,
-  onSpecialActorRotationChange,
-  specialActorPosition,
-  specialActorRotation,
+  onTransducerPositionChange,
+  onTransducerRotationChange,
+  transducerPosition,
+  transducerRotation,
 }) => {
   const context = useRef(null);
-  const transductorRef = useRef(null);
+  const transducerRef = useRef(null);
   const skinRef = useRef(null);
   const isInitialized = useRef(false);
 
@@ -40,9 +40,8 @@ const VTKViewerMovable = ({
       }
 
       try {
-        console.log("Inicializando VTK...");
-        
-        // Usar el mismo enfoque simple que funciona en el segundo código
+        console.log("Initializing VTK...");
+
         const fullScreenRenderer = vtkFullScreenRenderWindow.newInstance({
           rootContainer: containerRef.current,
           containerStyle: { width: "100%", height: "100%" },
@@ -50,14 +49,13 @@ const VTKViewerMovable = ({
 
         const renderer = fullScreenRenderer.getRenderer();
         const renderWindow = fullScreenRenderer.getRenderWindow();
-        const camera = renderer.getActiveCamera(); // <--- Obtenemos la cámara
+        const camera = renderer.getActiveCamera();
 
-        // --- CONFIGURACIÓN DE POSICIÓN INICIAL ---
-        // Usando tus valores de la prueba 2 (redondeados para limpieza)
+        // initial camera position
         camera.setPosition(-0.21, -0.22, -4.1);
         camera.setFocalPoint(0, 0, 0);
-        camera.setViewUp(0, -1, 0); // El -1 en Y indica que tu escena está "invertida" respecto al estándar vtk
-        
+        camera.setViewUp(0, -1, 0); // the -1 on Y means the scene is flipped relative to the vtk standard
+
         const interactor = renderWindow.getInteractor();
         context.current = {
           fullScreenRenderer, 
@@ -67,20 +65,19 @@ const VTKViewerMovable = ({
         };
 
         const files = await fetchStlFiles();
-        console.log("Archivos STL encontrados:", files);
+        console.log("STL files found:", files);
 
         if (files.length === 0) {
-          console.warn("No se encontraron archivos STL");
+          console.warn("No STL files found");
           return;
         }
 
-        // Cargar archivos de manera similar al segundo código
         files.forEach((file) => {
           const reader = vtkSTLReader.newInstance();
           reader
             .setUrl(`/static/${file}`)
             .then(() => {
-              console.log("Nombre recibido:", file);
+              console.log("Name received:", file);
               const source = reader.getOutputData(0);
               const mapper = vtkMapper.newInstance();
               mapper.setInputData(source);
@@ -89,7 +86,7 @@ const VTKViewerMovable = ({
               const actor = vtkActor.newInstance();
               actor.setMapper(mapper);
 
-              // Asignar colores según el nombre del archivo
+              // assign colors based on the file name
               const name = file.toLowerCase();
               let assignedColor = [1.0, 1.0, 1.0];
               for (const keyword in meshColors) {
@@ -102,34 +99,34 @@ const VTKViewerMovable = ({
               actor.getProperty().setColor(...assignedColor);
               actor.getProperty().setDiffuseColor(...assignedColor);
 
-              // Identificar actores clave
+              // identify key actors
               if (name.includes("skin")) {
                 skinRef.current = actor;
-                actor.getProperty().setOpacity(0.7); // Hacer skin semitransparente
-                console.log("Skin identificado:", file);
+                actor.getProperty().setOpacity(0.7); // make skin semi-transparent
+                console.log("Skin identified:", file);
               }
               if (name.includes("transductor")) {
-                transductorRef.current = actor;
-                // Destacar el transductor
-                actor.getProperty().setColor(1, 0, 0); // Rojo
+                transducerRef.current = actor;
+                // highlight the transducer
+                actor.getProperty().setColor(1, 0, 0); // red
                 actor.setPosition(0, 0, -0.85);
                 console.log("rotation:", actor.getOrientation());
                 actor.setOrientation(0.0, 180, 0.0);
-                console.log("Transductor identificado:", file);
-                
-                // Notificar posición inicial
-                if (onSpecialActorPositionChange) {
-                  onSpecialActorPositionChange(actor.getPosition());
+                console.log("Transducer identified:", file);
+
+                // notify the initial position
+                if (onTransducerPositionChange) {
+                  onTransducerPositionChange(actor.getPosition());
                 }
-                if (onSpecialActorRotationChange) {
-                  onSpecialActorRotationChange(actor.getOrientation());
+                if (onTransducerRotationChange) {
+                  onTransducerRotationChange(actor.getOrientation());
                 }
               }
 
               renderer.addActor(actor);
-              console.log("Actor añadido:", file);
+              console.log("Actor added:", file);
 
-              // Renderizar después de agregar cada actor
+              // render after adding each actor
               renderWindow.render();
             })
             .catch((error) => {
@@ -137,18 +134,16 @@ const VTKViewerMovable = ({
             });
         });
 
-        // Configurar interacción DESPUÉS de cargar los modelos
+        // configure interaction after loading the models
         const style = vtkInteractorStyleTrackballCamera.newInstance();
         interactor.setInteractorStyle(style);
 
-        // Reemplaza la sección de interacción de mouse con este código:
-
-        // Configurar interacción para movimiento del transductor
+        // configure interaction for transducer movement
         let dragging = false;
         let lastPos = null;
 
         interactor.onRightButtonPress((callData) => {
-            if (!transductorRef.current) return;
+            if (!transducerRef.current) return;
             
             dragging = true;
             lastPos = { x: callData.position.x, y: callData.position.y };
@@ -160,7 +155,7 @@ const VTKViewerMovable = ({
             interactor.cancelAnimation(style);
         });
         interactor.onMouseMove((callData) => {
-            if (!dragging || !transductorRef.current || !skinRef.current || !lastPos) return;
+            if (!dragging || !transducerRef.current || !skinRef.current || !lastPos) return;
 
             const dx = callData.position.x - lastPos.x;
             const dy = callData.position.y - lastPos.y;
@@ -170,42 +165,42 @@ const VTKViewerMovable = ({
             const skinCenter = [0.00664, -0.00142, -0.04225];
             const sphereRadius = 0.75;
 
-            const currentPos = transductorRef.current.getPosition();
+            const currentPos = transducerRef.current.getPosition();
             
-            // Ángulos actuales aproximados
+            // current approximate angles
             const currentAngleX = Math.atan2(currentPos[1] - skinCenter[1], currentPos[0] - skinCenter[0]);
             const currentAngleY = Math.atan2(currentPos[2] - skinCenter[2], 
                                           Math.sqrt((currentPos[0]-skinCenter[0])**2 + (currentPos[1]-skinCenter[1])**2));
             
-            // Nuevos ángulos
+            // new angles
             const newAngleX = currentAngleX - dx * rotationSpeed;
             const newAngleY = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, currentAngleY - dy * rotationSpeed));
             
-            // Nueva posición
+            // new position
             const finalPos = [
                 skinCenter[0] + sphereRadius * Math.cos(newAngleY) * Math.cos(newAngleX),
                 skinCenter[1] + sphereRadius * Math.cos(newAngleY) * Math.sin(newAngleX),
                 skinCenter[2] + sphereRadius * Math.sin(newAngleY)
             ];
 
-            transductorRef.current.setPosition(...finalPos);
+            transducerRef.current.setPosition(...finalPos);
             
-            if (onSpecialActorPositionChange) {
-                onSpecialActorPositionChange(finalPos);
+            if (onTransducerPositionChange) {
+                onTransducerPositionChange(finalPos);
             }
             
             renderWindow.render();
         });
         isInitialized.current = true;
-        console.log("VTK inicializado correctamente");
+        console.log("VTK initialized successfully");
 
-        // Render final
+        // final render
         setTimeout(() => {
           renderWindow.render();
         }, 100);
 
       } catch (error) {
-        console.error("Error inicializando VTK:", error);
+        console.error("Error initializing VTK:", error);
       }
     };
 
@@ -213,31 +208,31 @@ const VTKViewerMovable = ({
 
     return () => {
       if (context.current) {
-        console.log("Limpiando VTK...");
+        console.log("Cleaning up VTK...");
         context.current.fullScreenRenderer.delete();
         context.current = null;
         isInitialized.current = false;
-        transductorRef.current = null;
+        transducerRef.current = null;
         skinRef.current = null;
       }
     };
-  }, [containerRef, onSpecialActorPositionChange, onSpecialActorRotationChange]);
+  }, [containerRef, onTransducerPositionChange, onTransducerRotationChange]);
 
-  // Sincronizar con posición externa
+  // sync with the external position
   useEffect(() => {
-    if (transductorRef.current && Array.isArray(specialActorPosition)) {
-      console.log("Actualizando posición desde props:", specialActorPosition);
-      transductorRef.current.setPosition(...specialActorPosition);
-      
-      if (specialActorRotation && Array.isArray(specialActorRotation)) {
-        transductorRef.current.setOrientation(...specialActorRotation);
+    if (transducerRef.current && Array.isArray(transducerPosition)) {
+      console.log("Updating position from props:", transducerPosition);
+      transducerRef.current.setPosition(...transducerPosition);
+
+      if (transducerRotation && Array.isArray(transducerRotation)) {
+        transducerRef.current.setOrientation(...transducerRotation);
       }
-      
+
       if (context.current?.renderWindow) {
         context.current.renderWindow.render();
       }
     }
-  }, [specialActorPosition, specialActorRotation]);
+  }, [transducerPosition, transducerRotation]);
 
   return null;
 };

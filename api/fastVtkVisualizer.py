@@ -7,34 +7,31 @@ import random
 
 
 class FastVtkVisualizer:
-    """
-    Pipeline VTK persistente optimizado.
-    Mantiene comportamiento EXACTO del original.
-    """
+    """Persistent VTK pipeline to generate the coronal slice."""
 
-    def __init__(self, mallas, width=300, height=300):
-        self.mallas = mallas
+    def __init__(self, meshes, width=300, height=300):
+        self.meshes = meshes
         self.width = width
         self.height = height
 
-        # Renderer
+        # renderer
         self.ren = vtk.vtkRenderer()
         self.ren.SetBackground(0, 0, 0)
 
-        # RenderWindow persistente
+        # persistent render window
         self.renWin = vtk.vtkRenderWindow()
         self.renWin.SetOffScreenRendering(1)
         self.renWin.SetMultiSamples(0)
         self.renWin.AddRenderer(self.ren)
         self.renWin.SetSize(self.width, self.height)
 
-        # Plano persistente
+        # persistent plane
         self.plane = vtk.vtkPlane()
 
         self.clippers = []
         self.actors = []
 
-        for polydata, color in self.mallas:
+        for polydata, color in self.meshes:
             clipper = vtk.vtkClipPolyData()
             clipper.SetInputData(polydata)
             clipper.SetClipFunction(self.plane)
@@ -53,19 +50,15 @@ class FastVtkVisualizer:
             self.clippers.append(clipper)
             self.actors.append(actor)
 
-        # Cámara paralela
+        # parallel camera
         self.camera = self.ren.GetActiveCamera()
         self.camera.SetParallelProjection(True)
 
-        # WindowToImage persistente
+        # persistent WindowToImage
         self.w2if = vtk.vtkWindowToImageFilter()
         self.w2if.SetInput(self.renWin)
         self.w2if.SetInputBufferTypeToRGB()
         self.w2if.ReadFrontBufferOff()
-
-    # ---------------------------------------------------------
-    # ROTACIONES OPTIMIZADAS (sin crear matrices 3x3)
-    # ---------------------------------------------------------
 
     @staticmethod
     def apply_euler_rotation(forward, up, pitch, yaw, roll):
@@ -114,11 +107,7 @@ class FastVtkVisualizer:
 
         return forward, up
 
-    # ---------------------------------------------------------
-    # FUNCIÓN PRINCIPAL
-    # ---------------------------------------------------------
-
-    def vtk_visualization_images(self, mov_module, image_rotation_deg=0):
+    def vtk_visualization_images(self, mov_module):
 
         controller = mov_module._controller
         if controller is None:
@@ -142,10 +131,7 @@ class FastVtkVisualizer:
 
         pos_np = np.asarray(pos, dtype=np.float64)
 
-        # -------------------------------------------------
-        # Forward / Up base
-        # -------------------------------------------------
-
+        # forward / up base
         center_proj = np.array([
             controller.center_x,
             pos_np[1],
@@ -170,10 +156,6 @@ class FastVtkVisualizer:
         up = np.cross(right, forward)
         up /= np.linalg.norm(up)
 
-        # -------------------------------------------------
-        # Rotación Euler optimizada
-        # -------------------------------------------------
-
         forward, up = self.apply_euler_rotation(
             forward,
             up,
@@ -182,20 +164,13 @@ class FastVtkVisualizer:
             controller.local_roll
         )
 
-        # -------------------------------------------------
-        # Actualizar plano
-        # -------------------------------------------------
-
         self.plane.SetOrigin(pos)
         self.plane.SetNormal(up.tolist())
 
-        # -------------------------------------------------
-        # Clip + cálculo manual de bounds
-        # -------------------------------------------------
-
+        # clip and bounds computation
         min_x = min_y = min_z = float("inf")
         max_x = max_y = max_z = float("-inf")
-        actores_creados = 0
+        visible_actors = 0
 
         for clipper, actor in zip(self.clippers, self.actors):
             clipper.Update()
@@ -206,7 +181,7 @@ class FastVtkVisualizer:
                 continue
 
             actor.SetVisibility(True)
-            actores_creados += 1
+            visible_actors += 1
 
             b = filled_poly.GetBounds()
 
@@ -217,7 +192,7 @@ class FastVtkVisualizer:
             min_z = min(min_z, b[4])
             max_z = max(max_z, b[5])
 
-        if actores_creados == 0:
+        if visible_actors == 0:
             img = np.zeros((self.height, self.width, 3), dtype=np.uint8)
             return img, pos, rot
 
@@ -231,10 +206,7 @@ class FastVtkVisualizer:
         if diagonal < 1e-6:
             diagonal = 1.0
 
-        # -------------------------------------------------
-        # Cámara
-        # -------------------------------------------------
-
+        # camera
         cam_distance = diagonal * 2.0
         cam_pos = pos_np - up * cam_distance
 
@@ -255,16 +227,9 @@ class FastVtkVisualizer:
 
         self.ren.ResetCameraClippingRange()
 
-        # -------------------------------------------------
-        # Render
-        # -------------------------------------------------
-
         self.renWin.Render()
 
-        # -------------------------------------------------
-        # Captura imagen
-        # -------------------------------------------------
-
+        # image capture
         self.w2if.Modified()
         self.w2if.Update()
 
