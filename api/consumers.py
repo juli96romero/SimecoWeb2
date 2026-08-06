@@ -2,6 +2,7 @@ import json
 import time
 import logging
 import base64
+import random
 from io import BytesIO
 from os import path, listdir
 
@@ -42,6 +43,13 @@ def get_model_256():
 
 
 bitstream_optimizer = BitStreamOptimizer()
+
+# Tiny jitter added ONLY to the position sent to the VTK image generator so the
+# image looks slightly alive. It does not modify the real transducer pose.
+# Each coordinate randomly picks one of 3 discrete steps (-j, 0, +j); having a
+# 0 option makes it stay put often, which looks more realistic.
+_POSITION_JITTER = 0.001   # world units (ellipsoid radii ~1)
+_POSITION_JITTER_CHOICES = (-_POSITION_JITTER, 0.0, _POSITION_JITTER)
 
 
 logging.basicConfig(level=logging.INFO,
@@ -114,7 +122,17 @@ class MainFrontendConsumer(WebsocketConsumer):
             # controller we want to see the new slice, and it also ensures
             # clipped is defined for the rest of the pipeline)
             vtk_start = time.time()
-            vtk_slice_image, _, _ = self.visualizer.render_from_controller(mov)
+            # add a tiny jitter to the position fed to the renderer so the image
+            # looks alive, without altering the real pose we report back
+            base_position = mov.get_current_position()
+            jittered_position = tuple(
+                p + random.choice(_POSITION_JITTER_CHOICES)
+                for p in base_position
+            )
+            vtk_slice_image, _, _ = self.visualizer.render_from_controller(
+                mov,
+                position=jittered_position,
+            )
             vtk_time = time.time() - vtk_start
             logging.info(f"VTK processing time: {vtk_time*1000:.2f}ms")
 
@@ -130,7 +148,7 @@ class MainFrontendConsumer(WebsocketConsumer):
             # neural network inference
             if clipped is not None:
                 inference_start = time.time()
-                inference_image = get_model_128().run_inference(generated_image=clipped)
+                inference_image = get_model_256().run_inference(generated_image=clipped)
                 inference_time = time.time() - inference_start
                 logging.info(f"Inference time: {inference_time*1000:.2f}ms")
             else:

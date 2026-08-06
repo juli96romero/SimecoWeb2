@@ -12,6 +12,12 @@ class BitStreamOptimizer:
         if image_data.dtype != np.uint8:
             image_data = image_data.astype(np.uint8)
 
+        # The rest of the pipeline (VTK, PIL, model) works in RGB, but
+        # cv2.imencode expects BGR. Convert so colors are not swapped
+        # (e.g. red arteries showing up as blue).
+        if image_data.ndim == 3 and image_data.shape[2] == 3:
+            image_data = cv2.cvtColor(image_data, cv2.COLOR_RGB2BGR)
+
         success, encoded_image = cv2.imencode('.jpg', image_data, self.encode_param)
 
         if success:

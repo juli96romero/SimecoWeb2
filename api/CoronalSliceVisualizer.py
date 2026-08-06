@@ -75,11 +75,18 @@ class CoronalSliceVisualizer:
         triangulator.Update()
         return triangulator.GetOutput()
 
-    def render_from_controller(self, controller_mov):
+    def render_from_controller(self, controller_mov, position=None, orientation=None):
 
-        
-        position = controller_mov.get_current_position()
-        pitch, yaw, roll = controller_mov.get_current_orientation()
+        # position/orientation can be overridden by the caller (e.g. to add a
+        # tiny jitter) without touching the controller's real pose
+        if position is None:
+            position = controller_mov.get_current_position()
+        if orientation is None:
+            orientation = controller_mov.get_current_orientation()
+        pitch, yaw, roll = orientation
+        # the 2D generated image rotates opposite to the 3D viewer on the Y
+        # (pitch) axis, so invert it here without affecting the real pose
+        pitch = -pitch
         print("Getting position ", position)
         print("Getting orientation (pitch, yaw, roll) in radians: ", (pitch, yaw, roll))
         # build the orthonormal basis

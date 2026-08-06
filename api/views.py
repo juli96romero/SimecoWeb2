@@ -84,12 +84,34 @@ def skin_only_view(request):
     polydata = reader.GetOutput()
 
     renderer = vtk.vtkRenderer()
+
+    # skin: semi-transparent so the painted cut can be seen inside
     mapper = vtk.vtkPolyDataMapper()
     mapper.SetInputData(polydata)
     actor = vtk.vtkActor()
     actor.SetMapper(mapper)
-    actor.GetProperty().SetOpacity(1)
+    actor.GetProperty().SetColor(0.9, 0.75, 0.65)
+    actor.GetProperty().SetOpacity(0.2)
     renderer.AddActor(actor)
+
+    # painted cut: filled slice of each mesh at the current plane, colored by organ
+    for mesh, color in get_meshes():
+        filled_slice = slice_and_fill_mesh_vtk(
+            mesh,
+            origin=slice_origin,
+            normal=normal_global,
+        )
+        if filled_slice.GetNumberOfCells() == 0:
+            continue
+
+        slice_mapper = vtk.vtkPolyDataMapper()
+        slice_mapper.SetInputData(filled_slice)
+        slice_actor = vtk.vtkActor()
+        slice_actor.SetMapper(slice_mapper)
+        slice_actor.GetProperty().SetColor(color)
+        slice_actor.GetProperty().SetLighting(False)
+        renderer.AddActor(slice_actor)
+
     render_window = vtk.vtkRenderWindow()
     render_window.AddRenderer(renderer)
     render_window.SetWindowName("Transductor")
