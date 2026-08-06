@@ -192,7 +192,8 @@ class MainFrontendConsumer(WebsocketConsumer):
             overlay_result = None
             if clipped is not None and image_base64 is not None:
                 fov_start = time.time()
-                overlay = cv2.resize(clipped, (128, 128))
+                # nearest keeps the organ colors intact (it is a label image)
+                overlay = cv2.resize(clipped, (128, 128), interpolation=cv2.INTER_NEAREST)
                 overlay = apply_fov_remap(overlay)
                 overlay_result = cv2.addWeighted(fov_image, 1.0, overlay, 0.5, 0)
                 fov_time = time.time() - fov_start

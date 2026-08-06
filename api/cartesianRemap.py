@@ -59,11 +59,18 @@ fov_optimizer.precompute_for_128x128()
 
 def apply_fov_remap(image):
     """
-    Input: 128x128x3 image
+    Input: HxWx3 image (normalized to 128x128 internally)
     Output: image transformed into the transducer field of view (FOV)
     """
     if not fov_optimizer._precomputed:
         raise RuntimeError("FOVOptimizer has not been precomputed. Call precompute_for_128x128() first.")
+
+    # the rotation matrix and the polar maps are precomputed for 128x128, so a
+    # larger input (e.g. the 256x256 inference) would get cropped instead of
+    # scaled by the warpAffine below
+    if image.shape[0] != 128 or image.shape[1] != 128:
+        interpolation = cv2.INTER_AREA if image.shape[0] > 128 else cv2.INTER_LINEAR
+        image = cv2.resize(image, (128, 128), interpolation=interpolation)
 
     # 1. rotation
     rotated_image = cv2.warpAffine(image, fov_optimizer.rotation_matrix, (128, 128))
